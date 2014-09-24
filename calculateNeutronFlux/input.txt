@@ -1,0 +1,4 @@
+nuclear  abundant  mass     th,b    i,b     gamma(KeV)  ratio(%)  halflive  halflive_unit
+94Zr     17.38     91.22    0.053   0.268   756         54.8      64        d 
+96Zr     2.80      91.22    0.0213  5.28    743         98        16.74     h 
+58Fe     0.28      55.84    1.31    1.28    1099        56.1      44.6      d 
