@@ -9,20 +9,21 @@
 #include "TString.h"
 #include "TF1.h"
 
-		Double_t fun_unfold_gause(Double_t energy);
-		Double_t fun_FWHM( Double_t *energy,Double_t *par);
+Double_t fun_unfold_gause(Double_t energy);
+Double_t fun_FWHM( Double_t *energy,Double_t *par);
+
 class DataAnalysis {
 	public:
 		DataAnalysis();
 		virtual ~DataAnalysis();
 
 		int ReadFile(const std::vector<TString> fileList);
-			void ReadMacfile(TString &macFile);
+		void ReadMacfile(TString &macFile);
 		void PlotEffExperiment();
 		void PlotAllEfficiency();
 		void plot_FWHM();
 		TGraphErrors *PlotEffMC(int i);
-void PlotSpectra(int i);
+		void PlotSpectra(int i);
 
 	private:
 		double GetRateOfPeakComputom(TH1D *hist);
@@ -205,48 +206,18 @@ void DataAnalysis::AnalyzeSpectra(TH1D *h,std::vector<double> &peakAddr,std::vec
 	{
 		peakAddr.push_back((double)( (sp->GetPositionX())[i]));
 		double area = 0;
-		area = GetArea(h,(double)( (sp->GetPositionY())[i]));
+		area = GetArea(h,(double)( (sp->GetPositionX())[i]));
 		peakArea.push_back(area);
 	}
-	/*
-	   Bool_t *fixPos= new Bool_t[nfound];
-	   Bool_t *fixAmp= new Bool_t[nfound];
-	   Double_t *px = new Double_t[nfound];
-	   Double_t *spx = new Double_t[nfound];
-	   Double_t *py = new Double_t[nfound];
-	   Int_t bins = h->GetNbinsX();
-	   Double_t *source = new Double_t[bins];
 
-	   for(int i=0; i<bins ;i++) source[i] = h->GetBinContent(i);
-	   for(int i=0;i<nfound;i++)
-	   {
-	   fixPos[i] = kFALSE;
-	   fixAmp[i] = kFALSE;
-	   spx[i] = (sp->GetPositionX())[i];
-	   px[i] = h->FindBin((sp->GetPositionX())[i]);
-	   py[i] = (sp->GetPositionY())[i];
-	   }
-
-	   TSpectrumFit *sFit = new TSpectrumFit(nfound);
-	   sFit->SetFitParameters(h->GetMinimumBin(),h->GetNbinsX()-1,1000,0.1,sFit->kFitOptimChiCounts,sFit->kFitAlphaHalving,sFit->kFitPower2,sFit->kFitTaylorOrderFirst);
-	   sFit->SetPeakParameters(2,kFALSE,px,fixPos,py,fixAmp );
-	   sFit->FitAwmi(source);
-
-	   for(int i=0;i<nfound;i++)
-	   {
-	   peakAddr.push_back((sFit->GetPositions())[i]);
-	   peakArea.push_back((sFit->GetAreas())[i]);
-	   printf("%d\t%6.3lf%12.3lf%12.3lf",i,spx[i],px[i],py[i]);
-	   printf("%12.3lf%12.3lf\n",peakAddr[i],peakArea[i]);
-	   }
-	   */
 	delete sp;
 }
 
-TGraphErrors* DataAnalysis::PlotEffMC(int j )
+TGraphErrors* DataAnalysis::PlotEffMC(int index )
 {
-	TH1D *hSource =(TH1D* )sourceList->At(j);
-	TH1D *hHPGe =(TH1D* )HPGeList->At(j);
+	TH1D *hSource =(TH1D* )sourceList->At(index);
+	TH1D *hHPGe =(TH1D* )HPGeList->At(index);
+
 	std::vector<double> speakAddr;
 	std::vector<double> speakArea;
 	AnalyzeSpectra(hSource,speakAddr,speakArea);
@@ -254,36 +225,43 @@ TGraphErrors* DataAnalysis::PlotEffMC(int j )
 	std::vector<double> peakAddr;
 	std::vector<double> peakArea;
 	AnalyzeSpectra(hHPGe,peakAddr,peakArea);
-	if(speakAddr.size() == peakAddr.size())
-	{
-		TF1 *fun_eff=  new TF1("fun_eff",eff_fun,0.039,1.6,6);
-		fun_eff->SetParameters(-0.552,-5.687, 0.434, -0.0404, 0.0013, -0.00003);
 
-		TGraphErrors *g_eff = new TGraphErrors(peakAddr.size());
-		g_eff->SetTitle(fileList[j].Data());
-		for(int i=0; i<peakAddr.size();i++)
+	TF1 *fun_eff=  new TF1("fun_eff",eff_fun,0.039,1.6,6);
+	fun_eff->SetParameters(-0.552,-5.687, 0.434, -0.0404, 0.0013, -0.00003);
+
+	TGraphErrors *g_eff = new TGraphErrors(peakAddr.size());
+
+	for(int i=0; i<speakAddr.size();i++)
+	{
+		int k=0;
+		while(k<peakAddr.size())
 		{
-			g_eff->SetPoint(i,peakAddr[i],peakArea[i]/speakArea[i]);
-			g_eff->SetPointError(i,0,TMath::Sqrt(1./peakArea[i]+1./speakArea[i])*(peakArea[i]/speakArea[i]));
-			double k=( (g_eff->GetY())[i] - fun_eff->Eval(peakAddr[i]) )/fun_eff->Eval(peakAddr[i]) ;
-			printf("%d\t%6.3lf\t%8.lf\t%8.2lf\t%6.5lf\t%8.2lf\n",i,peakAddr[i],speakArea[i],peakArea[i],(g_eff->GetY())[i], 100*k);
+			if(TMath::Abs(peakAddr[k] - speakAddr[i]) < 0.0015 )
+			{
+				g_eff->SetPoint(i,peakAddr[k],peakArea[k]/speakArea[i]);
+				g_eff->SetPointError(i,0,TMath::Sqrt(1./peakArea[k]+1./speakArea[i])*(peakArea[k]/speakArea[i]));
+				double dif=( (g_eff->GetY())[i] - fun_eff->Eval(peakAddr[k]) )/fun_eff->Eval(peakAddr[k]) ;
+				printf("%d\t%6.3lf\t%8.2lf\t%8.2lf\t%8.5lf\t%8.2lf\n",i,peakAddr[k],speakArea[i],peakArea[k],(g_eff->GetY())[i], 100*dif);
+				break;
+			}
+			k++;
 		}
-		g_eff->Fit("fun_eff","R+");
-		g_eff->SetMarkerStyle(20 + j);
-		g_eff->SetLineColor(2+j);
-		g_eff->SetTitle(fileList[j].Data());
-		g_eff->GetXaxis()->SetTitle("Energy/MeV");
-		g_eff->GetXaxis()->CenterTitle();
-		g_eff->GetYaxis()->SetTitle("Efficiency");
-		g_eff->GetYaxis()->CenterTitle();
-		/* 
-		   fun_eff1->SetLineColor(kBlack);
-		   fun_eff1->Draw("SAME");
-		   */
-		//	reb(g_eff->GetFunction("fun_eff"),fun_eff1, 819, 0.051,1.6 );
-		return g_eff;
-	}else
-		return 0;
+
+	}
+	g_eff->Fit("fun_eff","R+");
+	g_eff->SetMarkerStyle(20 + index);
+	g_eff->SetLineColor(2+index);
+	g_eff->SetTitle(fileList[index].Data());
+	g_eff->GetXaxis()->SetTitle("Energy/MeV");
+	g_eff->GetXaxis()->CenterTitle();
+	g_eff->GetYaxis()->SetTitle("Efficiency");
+	g_eff->GetYaxis()->CenterTitle();
+	/* 
+	   fun_eff1->SetLineColor(kBlack);
+	   fun_eff1->Draw("SAME");
+	   */
+	//	reb(g_eff->GetFunction("fun_eff"),fun_eff1, 819, 0.051,1.6 );
+	return g_eff;
 }
 
 void  DataAnalysis::PlotSpectra(int i)
@@ -381,11 +359,11 @@ int  DataAnalysis::ReadFile(const std::vector<TString> fList)
 
 void dataAnalysis()
 {
-DataAnalysis *da = new DataAnalysis();
-std::vector<TString> fileList;
+	DataAnalysis *da = new DataAnalysis();
+	std::vector<TString> fileList;
 	TString fileName;
 	fileName = "output_point_80mm";
-	  fileList.push_back(fileName);
+	fileList.push_back(fileName);
 	/*fileName = "output_point_00mm";
 	  fileList.push_back(fileName);
 	  fileName = "output_plane_circle_5mm";
@@ -398,9 +376,9 @@ std::vector<TString> fileList;
 	  fileList.push_back(fileName);
 	  fileName = "output_plane_circle_30mm";
 	  fileList.push_back(fileName);
-	 fileName = "output_plane_circle_50mm";
-	fileList.push_back(fileName);
- */
+	  fileName = "output_plane_circle_50mm";
+	  fileList.push_back(fileName);
+	  */
 	da->ReadFile(fileList);
 	da->PlotAllEfficiency();
 	if(0)
