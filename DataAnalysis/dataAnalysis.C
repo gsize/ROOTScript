@@ -11,6 +11,7 @@
 
 Double_t fun_unfold_gause(Double_t energy);
 Double_t fun_FWHM( Double_t *energy,Double_t *par);
+double eff_fun(double *x,double *par);
 
 class DataAnalysis {
 	public:
@@ -19,11 +20,12 @@ class DataAnalysis {
 
 		int ReadFile(const std::vector<TString> fileList);
 		void ReadMacfile(TString &macFile);
-		void PlotEffExperiment();
-		void PlotAllEfficiency();
-		void plot_FWHM();
+		void PlotFWHM();
+		TGraphErrors* PlotEffExperiment();
 		TGraphErrors *PlotEffMC(int i);
+		void PlotAllEfficiency();
 		void PlotSpectra(int i);
+		void PlotAllSpectra();
 
 	private:
 		double GetRateOfPeakComputom(TH1D *hist);
@@ -75,7 +77,7 @@ Double_t fun_FWHM( Double_t *energy,Double_t *par)
 	return (par[0]+par[1]*TMath::Sqrt(x0 +par[2]* x0 * x0));
 }
 
-void DataAnalysis::plot_FWHM()
+void DataAnalysis::PlotFWHM()
 {
 	std::vector<double> en;
 	std::vector<double> chn;
@@ -113,7 +115,6 @@ void DataAnalysis::plot_FWHM()
 	for(int i=0;i<en.size();i++)
 	{
 		fwhm[i] /= fun_energy_calb->Derivative(en[i]);
-		//cout<<fwhm[i]<<endl;
 	}
 	TGraph *FWHM_cal=new TGraph(en.size(),&en[0],&fwhm[0]);
 	FWHM_cal->SetTitle("FWHM calibration");
@@ -144,32 +145,6 @@ void DataAnalysis::ReadMacfile(TString &macFile)
 
 }
 
-void DataAnalysis::PlotEffExperiment()
-{
-	TF1 *fun_eff_0=  new TF1("fun_eff_0",eff_fun,0.039,1.6,6);
-	TF1 *fun_eff_1=  new TF1("fun_eff_1",eff_fun,0.039,1.6,6);
-	TF1 *fun_eff_2=  new TF1("fun_eff_2",eff_fun,0.039,1.6,6);
-	fun_eff_0->SetParameters(-0.552,-5.687, 0.434, -0.0404, 0.0013, -0.00003);
-	fun_eff_1->SetParameters(-0.452590,-5.901407, 0.539222 ,-0.059246, 0.002599 ,-0.000048);
-	fun_eff_2->SetParameters(-0.439793, -5.822942, 0.488969, -0.048183, 0.001682 ,-0.000024);
-
-	Double_t energy_0[]={
-		0.053, 0.06202  ,  0.08602 , 0.09802 , 
-		0.121781 ,0.2446981, 0.295941 , 0.344281 ,
-		0.3677891, 0.4111161, 0.4439651, 0.563991 ,
-		0.688671 , 0.78891  , 0.867371 , 0.9640791,
-		1.085871 , 1.08971  , 1.1120691, 1.2129481,
-		1.299141 , 1.4081   , 1.52811   
-	};
-
-	//TCanvas* c_eff = new TCanvas("Canvas_eff", "Canvas_eff");
-	fun_eff_0->SetLineColor(kBlack);
-	fun_eff_0->Draw("SAME");
-	fun_eff_1->SetLineColor(kRed);
-	fun_eff_1->Draw("SAME");
-	fun_eff_2->SetLineColor(kBlue);
-	fun_eff_2->Draw("SAME");
-}
 
 double DataAnalysis::GetArea( TH1D *h,int bin)
 {
@@ -234,9 +209,10 @@ TGraphErrors* DataAnalysis::PlotEffMC(int index )
 	for(int i=0; i<speakAddr.size();i++)
 	{
 		int k=0;
+		double shield = 0.0015;
 		while(k<peakAddr.size())
 		{
-			if(TMath::Abs(peakAddr[k] - speakAddr[i]) < 0.0015 )
+			if(TMath::Abs(peakAddr[k] - speakAddr[i]) < shield )
 			{
 				g_eff->SetPoint(i,peakAddr[k],peakArea[k]/speakArea[i]);
 				g_eff->SetPointError(i,0,TMath::Sqrt(1./peakArea[k]+1./speakArea[i])*(peakArea[k]/speakArea[i]));
@@ -256,16 +232,15 @@ TGraphErrors* DataAnalysis::PlotEffMC(int index )
 	g_eff->GetXaxis()->CenterTitle();
 	g_eff->GetYaxis()->SetTitle("Efficiency");
 	g_eff->GetYaxis()->CenterTitle();
-	/* 
-	   fun_eff1->SetLineColor(kBlack);
-	   fun_eff1->Draw("SAME");
-	   */
-	//	reb(g_eff->GetFunction("fun_eff"),fun_eff1, 819, 0.051,1.6 );
+
 	return g_eff;
 }
 
 void  DataAnalysis::PlotSpectra(int i)
 {
+	int entries = sourceList->GetEntries();
+	if(entries < 1 || i >= entries) return;
+
 	TH1D *hSource =(TH1D* )sourceList->At(i);
 	TH1D *hHPGe =(TH1D* )HPGeList->At(i);
 
@@ -295,32 +270,75 @@ void  DataAnalysis::PlotSpectra(int i)
 	return ;
 }
 
+void  DataAnalysis::PlotAllSpectra()
+{
+	for(int i=0;i<sourceList->GetEntries();i++)
+	{
+		PlotSpectra(i);
+	}
+}
+
+TGraphErrors* DataAnalysis::PlotEffExperiment()
+{
+	TString dir = gSystem->UnixPathName(gInterpreter->GetCurrentMacroName());
+	dir.ReplaceAll("dataAnalysis.C","");
+	dir.ReplaceAll("/./","/");
+ifstream inf;
+	inf.open(Form("%seff_ba133_08_20130502.Txt",dir.Data()));
+	if(!(inf.is_open()))
+	{
+		printf("open eff file failed!\n");
+		return 0;
+	}
+
+	int i=0; 
+	std::vector<double> xList;
+	std::vector<double> yList;
+	std::vector<double> yErrorsList;
+	string str_tmp;
+	while(getline(inf,str_tmp)) {
+		i++;
+		double x,y,yFit,yError,yDelta; 
+		if(i>5){
+			sscanf(str_tmp.c_str(),"%lf%lf%lf%lf",&x, &y, &yFit, &yError);
+			xList.push_back(x*0.001);
+			yList.push_back(y);
+			yDelta =TMath::Abs( y * yError *0.01);
+			//cout<<yError<<"\t"<<yDelta<<endl;
+			yErrorsList.push_back(yDelta);
+		}
+	}
+	inf.close();
+
+	TGraphErrors *gr = new TGraphErrors((Int_t)xList.size(),&xList[0],&yList[0],0,&yErrorsList[0]);
+	TF1 *fun_fit = new TF1("eff_fun",eff_fun,0.030,1.5,6);
+	fun_fit->SetParameters(-0.552,-5.687, 0.434, -0.0404, 0.0013, -0.00003);
+	gr->Fit(fun_fit,"R+");
+
+	return gr;
+}
 void DataAnalysis::PlotAllEfficiency()
 {
 	TMultiGraph *mg = new TMultiGraph();
 	TLegend *leg = new TLegend(0.1,0.8,0.3,0.9);
+
 	for(int i=0;i<sourceList->GetEntries();i++)
 	{
-		PlotSpectra(i);
-
 		TGraphErrors *gr = 0;
 		gr = PlotEffMC( i);
 		mg->Add(gr);
 		leg->AddEntry(gr,fileList[i].Data(),"lep");
 	}
-	TPaveText *pt = new TPaveText(0.6,0.7,0.98,0.98,"brNDC");
-	pt->SetFillColor(18);
-	pt->SetTextAlign(12);
-	pt->SetTextFont(12);
-	pt->AddText("Polynomial Fit");
-	pt->AddText(" #varepsilon = exp(#sum^{6}_{i=1} a_{i} E^{2-i})");
 
 	TCanvas* c4 = new TCanvas("effGr", "  ");
-	mg->Draw("ALP");
-	//pt->Draw();
-	if(1)
-		PlotEffExperiment();
 
+	if(1)
+	{
+		TGraphErrors *gr = 0;
+		gr= PlotEffExperiment();
+		mg->Add(gr);
+	}
+	mg->Draw("AP");
 	leg->Draw();
 	gPad->SetLogy(1);
 	gPad->SetGridy(1);
@@ -339,7 +357,7 @@ int  DataAnalysis::ReadFile(const std::vector<TString> fList)
 		fileList.push_back(fList[i]);
 		fname = fileList[i];
 
-		TFile *f2= TFile::Open(Form("%sdata/livemore/%s.root",dir.Data(),fname.Data()));
+		TFile *f2= TFile::Open(Form("%sdata/20140929/%s.root",dir.Data(),fname.Data()));
 		if(!(f2->IsOpen())){
 			cout<<"file: "<<fname<<" isn't opened!"<<endl;
 			return 0;
@@ -362,7 +380,9 @@ void dataAnalysis()
 	DataAnalysis *da = new DataAnalysis();
 	std::vector<TString> fileList;
 	TString fileName;
-	fileName = "output_point_80mm";
+	//fileName = "output_point_80mm";
+	//fileList.push_back(fileName);
+	fileName = "emlm_deadlayer0.7mm_point_80mm";
 	fileList.push_back(fileName);
 	/*fileName = "output_point_00mm";
 	  fileList.push_back(fileName);
@@ -382,9 +402,11 @@ void dataAnalysis()
 	da->ReadFile(fileList);
 	da->PlotAllEfficiency();
 	if(0)
-		da->plot_eff_std();
+		da->PlotAllSpectra();
+	if(0)
+		da->PlotEffExperiment();
 
 	if(0)
-		da->plot_FWHM();
+		da->PlotFWHM();
 }
 
