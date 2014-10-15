@@ -174,7 +174,7 @@ void DataAnalysis::AnalyzeSpectra(TH1D *h,std::vector<double> &peakAddr,std::vec
 {
 
 	TSpectrum *sp = new TSpectrum();
-	Int_t nfound = sp->Search(h,2);
+	Int_t nfound = sp->Search(h,2,"nodraw");
 	printf("Found %d peaks to fit\n",nfound);
 
 	for(int i=0; i < nfound;i++)
@@ -311,7 +311,7 @@ ifstream inf;
 	inf.close();
 
 	TGraphErrors *gr = new TGraphErrors((Int_t)xList.size(),&xList[0],&yList[0],0,&yErrorsList[0]);
-	TF1 *fun_fit = new TF1("eff_fun",eff_fun,0.030,1.5,6);
+	TF1 *fun_fit = new TF1("eff_fun",eff_fun,0.039,1.5,6);
 	fun_fit->SetParameters(-0.552,-5.687, 0.434, -0.0404, 0.0013, -0.00003);
 	gr->Fit(fun_fit,"R+");
 
@@ -357,7 +357,7 @@ int  DataAnalysis::ReadFile(const std::vector<TString> fList)
 		fileList.push_back(fList[i]);
 		fname = fileList[i];
 
-		TFile *f2= TFile::Open(Form("%sdata/20140929/%s.root",dir.Data(),fname.Data()));
+		TFile *f2= TFile::Open(Form("%sdata/20141014/%s.root",dir.Data(),fname.Data()));
 		if(!(f2->IsOpen())){
 			cout<<"file: "<<fname<<" isn't opened!"<<endl;
 			return 0;
@@ -380,12 +380,17 @@ void dataAnalysis()
 	DataAnalysis *da = new DataAnalysis();
 	std::vector<TString> fileList;
 	TString fileName;
-	//fileName = "output_point_80mm";
-	//fileList.push_back(fileName);
-	fileName = "emlm_deadlayer0.7mm_point_80mm";
+	fileName = "output_point_80mm";
 	fileList.push_back(fileName);
-	/*fileName = "output_point_00mm";
-	  fileList.push_back(fileName);
+	fileName = "output_point_85mm";
+fileList.push_back(fileName);
+fileName = "output_point_90mm";
+fileList.push_back(fileName);
+fileName = "output_point_95mm";
+fileList.push_back(fileName);
+fileName = "output_point_100mm";
+fileList.push_back(fileName);
+	/*
 	  fileName = "output_plane_circle_5mm";
 	  fileList.push_back(fileName);
 	  fileName = "output_plane_circle_10mm";
@@ -398,7 +403,7 @@ void dataAnalysis()
 	  fileList.push_back(fileName);
 	  fileName = "output_plane_circle_50mm";
 	  fileList.push_back(fileName);
-	  */
+*/
 	da->ReadFile(fileList);
 	da->PlotAllEfficiency();
 	if(0)
