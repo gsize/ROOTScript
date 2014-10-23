@@ -2,6 +2,14 @@
 
 #include <vector>
 
+double eff_fun(double *x, double *par);
+double MDA(double bg, double eff, double re,double t);
+int plotLine(TString lineName, int i, double *x,double *y, double *yErrors);
+int plotEfficiency();
+void ReadAndCalculate(const TString &outfile, TF1 *fun_eff);
+void ReadFile(TString filename,std::vector<double> &xList,std::vector<double> &yList,std::vector<double> &yErrorsList);
+
+
 double eff_fun(double *x, double *par)
 {
 	double eff=0.;
@@ -28,7 +36,7 @@ int plotLine(TString lineName, int i, double *x,double *y, double *yErrors)
 	TF1 *fun_fit = 0;
 	if(lineName.Contains("eff"))
 	{
-		fun_fit = new TF1(lineName,eff_fun,0.030,1.500.,6);
+		fun_fit = new TF1(lineName,eff_fun,0.030,1.500,6);
 		fun_fit->SetParameters(-0.349521, -6.056041, 0.605647, -0.068800, 0.003151, -0.000059);
 	}else{
 		fun_fit = new TF1(lineName,"pol2",0.030,1.500);
@@ -83,7 +91,7 @@ int plotEfficiency()
 		TString outfile;
 		outfile ="outfile" +legendName[i];
 		outfile+=".txt";
-ReadAndCalculate(outfile, fun_fit);
+		ReadAndCalculate(outfile, fun_fit);
 		yErrorsList.clear();
 		xList.clear();
 		yList.clear();
@@ -132,7 +140,6 @@ void ReadFile(TString filename,std::vector<double> &xList,std::vector<double> &y
 		}
 	}
 	in.close();
-
 }
 
 void ReadAndCalculate(const TString &outfile, TF1 *fun_eff)
@@ -154,12 +161,12 @@ void ReadAndCalculate(const TString &outfile, TF1 *fun_eff)
 	double bg_rate = 0.; 
 	TString str_tmp;
 
-std::vector<double> eff_list;
-std::vector<double> energy_list;
-std::vector<double> branch_list;
-std::vector<double> MDA_list;
+	std::vector<double> eff_list;
+	std::vector<double> energy_list;
+	std::vector<double> branch_list;
+	std::vector<double> MDA_list;
 
-//	background = bg_rate * liveTime;
+	//	background = bg_rate * liveTime;
 	while(1) {
 		if(in.eof()) break;
 		str_tmp.ReadLine(in);
@@ -171,18 +178,18 @@ std::vector<double> MDA_list;
 		{
 			double energy,branch,livetime,backgroud, mda;
 			if(str_tmp[0] == '#' || str_tmp.IsWhitespace()) continue;
-			sscanf(str_tmp.Data(),"%lf%lf%lf%lf",&energy, &branch);
+			sscanf(str_tmp.Data(),"%lf%lf",&energy, &branch);
 			double effData = fun_eff->Eval(energy/1.E+6);
 			eff_list.push_back(effData * 1.E+2);
 			energy_list.push_back(energy/1.E+3);
 			branch_list.push_back(branch);
 			mda = MDA(bg_rate * liveTime,effData,branch/100.0,liveTime);
 			MDA_list.push_back(mda);
-		//	printf("%8.3lf kev,eff:%8.3lfMDA(Bq):%8.3lf\n",energy/1.E+3,effData,mda);
+			//	printf("%8.3lf kev,eff:%8.3lfMDA(Bq):%8.3lf\n",energy/1.E+3,effData,mda);
 		}
 	}
 	in.close();
-	 
+
 	TString outFile;
 	outFile = dir + outfile;
 	//ofstream out;
