@@ -23,6 +23,7 @@ class DataAnalysis {
 		void PlotFWHM();
 		TGraphErrors* PlotEffExperiment();
 		TGraphErrors *PlotEffMC(int i);
+TGraphErrors* DataAnalysis::PlotEffMCNP();
 		void PlotAllEfficiency();
 		void PlotSpectra(int i);
 		void PlotAllSpectra();
@@ -278,6 +279,46 @@ void  DataAnalysis::PlotAllSpectra()
 	}
 }
 
+TGraphErrors* DataAnalysis::PlotEffMCNP()
+{
+	TString dir = gSystem->UnixPathName(gInterpreter->GetCurrentMacroName());
+	dir.ReplaceAll("dataAnalysis.C","");
+	dir.ReplaceAll("/./","/");
+ifstream inf;
+	inf.open(Form("%sdata/eff_80mm_point_MCNP.txt",dir.Data()));
+	if(!(inf.is_open()))
+	{
+		printf("open eff file failed!\n");
+		return 0;
+	}
+
+	int i=0; 
+	std::vector<double> xList;
+	std::vector<double> yList;
+	string str_tmp;
+	while(getline(inf,str_tmp)) {
+		i++;
+		double x,yExp,yMC; 
+		if(i>0){
+			sscanf(str_tmp.c_str(),"%lf%lf%lf",&x, &yExp, &yMC);
+			xList.push_back(x*0.001);
+			yList.push_back(yMC);
+		}
+	}
+	inf.close();
+
+	TGraphErrors *gr = new TGraphErrors((Int_t)xList.size(),&xList[0],&yList[0]);
+	TF1 *fun_fit = new TF1("eff_fun",eff_fun,0.039,1.5,6);
+	fun_fit->SetParameters(-0.552,-5.687, 0.434, -0.0404, 0.0013, -0.00003);
+	gr->Fit(fun_fit,"R+");
+	gr->SetTitle("eff MCNP");
+	gr->GetXaxis()->SetTitle("Energy/MeV");
+	gr->GetXaxis()->CenterTitle();
+	gr->GetYaxis()->SetTitle("Eff");
+	gr->GetYaxis()->CenterTitle();
+
+	return gr;
+}
 TGraphErrors* DataAnalysis::PlotEffExperiment()
 {
 	TString dir = gSystem->UnixPathName(gInterpreter->GetCurrentMacroName());
@@ -337,6 +378,8 @@ void DataAnalysis::PlotAllEfficiency()
 		TGraphErrors *gr = 0;
 		gr= PlotEffExperiment();
 		mg->Add(gr);
+gr = PlotEffMCNP();
+		mg->Add(gr);
 	}
 	mg->Draw("AP");
 	leg->Draw();
@@ -357,7 +400,7 @@ int  DataAnalysis::ReadFile(const std::vector<TString> fList)
 		fileList.push_back(fList[i]);
 		fname = fileList[i];
 
-		TFile *f2= TFile::Open(Form("%sdata/20141014/%s.root",dir.Data(),fname.Data()));
+		TFile *f2= TFile::Open(Form("%sdata/entries10M/%s.root",dir.Data(),fname.Data()));
 		if(!(f2->IsOpen())){
 			cout<<"file: "<<fname<<" isn't opened!"<<endl;
 			return 0;
@@ -380,6 +423,7 @@ void dataAnalysis()
 	DataAnalysis *da = new DataAnalysis();
 	std::vector<TString> fileList;
 	TString fileName;
+	/*
 	fileName = "output_point_80mm";
 	fileList.push_back(fileName);
 	fileName = "output_point_85mm";
@@ -390,7 +434,9 @@ fileName = "output_point_95mm";
 fileList.push_back(fileName);
 fileName = "output_point_100mm";
 fileList.push_back(fileName);
-	/*
+*/
+	fileName = "output_point_00mm";
+	fileList.push_back(fileName);
 	  fileName = "output_plane_circle_5mm";
 	  fileList.push_back(fileName);
 	  fileName = "output_plane_circle_10mm";
@@ -403,7 +449,6 @@ fileList.push_back(fileName);
 	  fileList.push_back(fileName);
 	  fileName = "output_plane_circle_50mm";
 	  fileList.push_back(fileName);
-*/
 	da->ReadFile(fileList);
 	da->PlotAllEfficiency();
 	if(0)
