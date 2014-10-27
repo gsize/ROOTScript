@@ -30,7 +30,7 @@ TGraphErrors* DataAnalysis::PlotEffMCNP();
 
 	private:
 		double GetRateOfPeakComputom(TH1D *hist);
-		double eff_fun(double *x,double *par);
+		//double eff_fun(double *x,double *par);
 		double GetArea(TH1D *h, int i);
 		double GetArea( TH1D *h, double e);
 		void AnalyzeSpectra(TH1D *h,std::vector<double> &peakAddr,std::vector<double> &peakArea);
@@ -181,8 +181,12 @@ void DataAnalysis::AnalyzeSpectra(TH1D *h,std::vector<double> &peakAddr,std::vec
 	for(int i=0; i < nfound;i++)
 	{
 		peakAddr.push_back((double)( (sp->GetPositionX())[i]));
-		double area = 0;
-		area = GetArea(h,(double)( (sp->GetPositionX())[i]));
+	}
+	std::sort(peakAddr.begin(),peakAddr.end());
+	for(int i=0; i < nfound;i++)
+	{
+	double area = 0;
+		area = GetArea(h,peakAddr[i]);
 		peakArea.push_back(area);
 	}
 
@@ -437,7 +441,13 @@ fileList.push_back(fileName);
 */
 	fileName = "output_point_00mm";
 	fileList.push_back(fileName);
-	  fileName = "output_plane_circle_5mm";
+//fileName = "output_point_80mm_t";
+//	fileList.push_back(fileName);
+fileName = "d90mm";
+	fileList.push_back(fileName);
+	fileName = "noShielddl07mm_t1";
+	fileList.push_back(fileName);
+/*	  fileName = "output_plane_circle_5mm";
 	  fileList.push_back(fileName);
 	  fileName = "output_plane_circle_10mm";
 	  fileList.push_back(fileName);
@@ -449,6 +459,7 @@ fileList.push_back(fileName);
 	  fileList.push_back(fileName);
 	  fileName = "output_plane_circle_50mm";
 	  fileList.push_back(fileName);
+*/
 	da->ReadFile(fileList);
 	da->PlotAllEfficiency();
 	if(0)
