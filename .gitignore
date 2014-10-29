@@ -8,7 +8,9 @@ zhaohaogui/
 yangtao/
 bubble_analy/
 xian_experiment/
-
+DataAnalysis/data/[0-9]*
+DataAnalysis/data/*.jpg
+HPGe_parameter/outfile*
 *.[dD][Oo][Cc]
 *.docx
 *.xls
