@@ -12,6 +12,7 @@
 Double_t fun_unfold_gause(Double_t energy);
 Double_t fun_FWHM( Double_t *energy,Double_t *par);
 double eff_fun(double *x,double *par);
+Double_t correct(Double_t *x, Double_t *par);
 
 class DataAnalysis {
 	public:
@@ -23,10 +24,11 @@ class DataAnalysis {
 		void PlotFWHM();
 		TGraphErrors* PlotEffExperiment();
 		TGraphErrors *PlotEffMC(int i);
-TGraphErrors* DataAnalysis::PlotEffMCNP();
+		TGraphErrors* DataAnalysis::PlotEffMCNP();
 		void PlotAllEfficiency();
 		void PlotSpectra(int i);
 		void PlotAllSpectra();
+		void SetDir(TString d){dataDir = d;};
 
 	private:
 		double GetRateOfPeakComputom(TH1D *hist);
@@ -39,6 +41,7 @@ TGraphErrors* DataAnalysis::PlotEffMCNP();
 		std::vector<TString> fileList;
 		TObjArray *sourceList;
 		TObjArray *HPGeList;
+		TString dataDir;
 };
 
 DataAnalysis::DataAnalysis()
@@ -76,6 +79,12 @@ Double_t fun_FWHM( Double_t *energy,Double_t *par)
 {
 	Double_t x0=energy[0];
 	return (par[0]+par[1]*TMath::Sqrt(x0 +par[2]* x0 * x0));
+}
+
+Double_t correct(Double_t *x, Double_t *par) {
+	Double_t x0 = TMath::Tan(TMath::Pi()*x[0]/180);
+	Double_t result = 0.5*(1. - 1/TMath::Sqrt(1+x0*x0));
+	return result;
 }
 
 void DataAnalysis::PlotFWHM()
@@ -185,7 +194,7 @@ void DataAnalysis::AnalyzeSpectra(TH1D *h,std::vector<double> &peakAddr,std::vec
 	std::sort(peakAddr.begin(),peakAddr.end());
 	for(int i=0; i < nfound;i++)
 	{
-	double area = 0;
+		double area = 0;
 		area = GetArea(h,peakAddr[i]);
 		peakArea.push_back(area);
 	}
@@ -208,7 +217,7 @@ TGraphErrors* DataAnalysis::PlotEffMC(int index )
 
 	TF1 *fun_eff=  new TF1("fun_eff",eff_fun,0.039,1.6,6);
 	fun_eff->SetParameters(-0.552,-5.687, 0.434, -0.0404, 0.0013, -0.00003);
-
+	TF1 *fun_correct=  new TF1("fun_correct",correct,0,90,0);
 	TGraphErrors *g_eff = new TGraphErrors(peakAddr.size());
 
 	for(int i=0; i<speakAddr.size();i++)
@@ -219,8 +228,8 @@ TGraphErrors* DataAnalysis::PlotEffMC(int index )
 		{
 			if(TMath::Abs(peakAddr[k] - speakAddr[i]) < shield )
 			{
-				g_eff->SetPoint(i,peakAddr[k],peakArea[k]/speakArea[i]);
-				g_eff->SetPointError(i,0,TMath::Sqrt(1./peakArea[k]+1./speakArea[i])*(peakArea[k]/speakArea[i]));
+				g_eff->SetPoint(i,peakAddr[k],fun_correct->Eval(30) *peakArea[k]/speakArea[i]);
+				g_eff->SetPointError(i,0,fun_correct->Eval(30) *TMath::Sqrt(1./peakArea[k]+1./speakArea[i])*(peakArea[k]/speakArea[i]));
 				double dif=( (g_eff->GetY())[i] - fun_eff->Eval(peakAddr[k]) )/fun_eff->Eval(peakAddr[k]) ;
 				printf("%d\t%6.3lf\t%8.2lf\t%8.2lf\t%8.5lf\t%8.2lf\n",i,peakAddr[k],speakArea[i],peakArea[k],(g_eff->GetY())[i], 100*dif);
 				break;
@@ -288,7 +297,7 @@ TGraphErrors* DataAnalysis::PlotEffMCNP()
 	TString dir = gSystem->UnixPathName(gInterpreter->GetCurrentMacroName());
 	dir.ReplaceAll("dataAnalysis.C","");
 	dir.ReplaceAll("/./","/");
-ifstream inf;
+	ifstream inf;
 	inf.open(Form("%sdata/eff_80mm_point_MCNP.txt",dir.Data()));
 	if(!(inf.is_open()))
 	{
@@ -328,7 +337,7 @@ TGraphErrors* DataAnalysis::PlotEffExperiment()
 	TString dir = gSystem->UnixPathName(gInterpreter->GetCurrentMacroName());
 	dir.ReplaceAll("dataAnalysis.C","");
 	dir.ReplaceAll("/./","/");
-ifstream inf;
+	ifstream inf;
 	inf.open(Form("%seff_ba133_08_20130502.Txt",dir.Data()));
 	if(!(inf.is_open()))
 	{
@@ -359,6 +368,10 @@ ifstream inf;
 	TF1 *fun_fit = new TF1("eff_fun",eff_fun,0.039,1.5,6);
 	fun_fit->SetParameters(-0.552,-5.687, 0.434, -0.0404, 0.0013, -0.00003);
 	gr->Fit(fun_fit,"R+");
+	gr->SetMarkerStyle(5);
+//	gr->SetLineColor(5);
+for(int i=0;i<xList.size();i++)
+printf("%d\t%8.2lf\t%8.2lf\t%8.2lf\n",i,xList[i],yList[i],);
 
 	return gr;
 }
@@ -382,8 +395,8 @@ void DataAnalysis::PlotAllEfficiency()
 		TGraphErrors *gr = 0;
 		gr= PlotEffExperiment();
 		mg->Add(gr);
-gr = PlotEffMCNP();
-		mg->Add(gr);
+//		gr = PlotEffMCNP();
+//		mg->Add(gr);
 	}
 	mg->Draw("AP");
 	leg->Draw();
@@ -404,7 +417,7 @@ int  DataAnalysis::ReadFile(const std::vector<TString> fList)
 		fileList.push_back(fList[i]);
 		fname = fileList[i];
 
-		TFile *f2= TFile::Open(Form("%sdata/entries10M/%s.root",dir.Data(),fname.Data()));
+		TFile *f2= TFile::Open(Form("%sdata/%s/%s.root",dir.Data(),dataDir.Data(),fname.Data()));
 		if(!(f2->IsOpen())){
 			cout<<"file: "<<fname<<" isn't opened!"<<endl;
 			return 0;
@@ -426,48 +439,59 @@ void dataAnalysis()
 {
 	DataAnalysis *da = new DataAnalysis();
 	std::vector<TString> fileList;
-	TString fileName;
-	/*
-	fileName = "output_point_80mm";
-	fileList.push_back(fileName);
-	fileName = "output_point_85mm";
-fileList.push_back(fileName);
-fileName = "output_point_90mm";
-fileList.push_back(fileName);
-fileName = "output_point_95mm";
-fileList.push_back(fileName);
-fileName = "output_point_100mm";
-fileList.push_back(fileName);
+/*	TString fileName[]={
+		"pointd90mmdl7cover3mm",
+		"plane1mmd90mmdl7cover3mm",
+		"plane2mmd90mmdl7cover3mm",
+		"plane3mmd90mmdl7cover3mm",
+		"plane5mmd90mmdl7cover3mm",
+		"plane10mmd90mmdl7cover3mm",
+		"plane20mmd90mmdl7cover3mm"
+	};
 */
-	fileName = "output_point_00mm";
-	fileList.push_back(fileName);
-//fileName = "output_point_80mm_t";
-//	fileList.push_back(fileName);
-fileName = "d90mm";
-	fileList.push_back(fileName);
-	fileName = "noShielddl07mm_t1";
-	fileList.push_back(fileName);
-/*	  fileName = "output_plane_circle_5mm";
-	  fileList.push_back(fileName);
-	  fileName = "output_plane_circle_10mm";
-	  fileList.push_back(fileName);
-	  fileName = "output_plane_circle_15mm";
-	  fileList.push_back(fileName);
-	  fileName = "output_plane_circle_20mm";
-	  fileList.push_back(fileName);
-	  fileName = "output_plane_circle_30mm";
-	  fileList.push_back(fileName);
-	  fileName = "output_plane_circle_50mm";
-	  fileList.push_back(fileName);
-*/
-	da->ReadFile(fileList);
-	da->PlotAllEfficiency();
-	if(0)
-		da->PlotAllSpectra();
-	if(0)
-		da->PlotEffExperiment();
+	TString fileName[]={
+//	"pointd90mmdl07cover3mm",
+//	"pointd90mmdl08cover3mm",
+//	"pointd90mmdl09cover3mm",
+//	"pointd90mmdl10cover3mm",
+//	"pointd90mmdl12cover3mm",
+//	"pointd90mmdl13cover3mm",
+	"pointd90mmdl14cover3mm",
+	"pointd90mmdl15cover3mm",
+	"pointd90mmdl16cover3mm",
+	"pointd90mmdl17cover3mm",
+//	"pointd90mmdl18cover3mm",
+//	"pointd90mmdl20cover3mm"
+	
+	};
+	TString dir("pointd90mmdl");
+da->SetDir(dir);
+		for(int i=0; i<4;i++)
+			fileList.push_back(fileName[i]);
+		/*
+		   fileName = "output_point_80mm";
+		   fileName = "output_point_85mm";
+		   fileName = "output_point_90mm";
+		   fileName = "output_point_95mm";
+		   fileName = "output_point_100mm";
+		   */
+		//	fileName = "output_point_00mm";
+		//fileName = "output_point_80mm_t";
+		/*	  fileName = "output_plane_circle_5mm";
+			  fileName = "output_plane_circle_10mm";
+			  fileName = "output_plane_circle_15mm";
+			  fileName = "output_plane_circle_20mm";
+			  fileName = "output_plane_circle_30mm";
+			  fileName = "output_plane_circle_50mm";
+			  */
+		da->ReadFile(fileList);
+		da->PlotAllEfficiency();
+		if(0)
+			da->PlotAllSpectra();
+		if(0)
+			da->PlotEffExperiment();
 
-	if(0)
-		da->PlotFWHM();
-}
+		if(0)
+			da->PlotFWHM();
+	}
 
