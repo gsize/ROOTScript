@@ -23,18 +23,19 @@ class DataAnalysis {
 		int ReadFile(const std::vector<TString> fileList);
 		void ReadMacfile(TString &macFile);
 		void PlotFWHM();
-		TGraphErrors* PlotEffExperiment();
+		TGraphErrors* PlotEffExperiment(TString fname);
 		TGraphErrors *PlotEffMC(int i);
 		TGraphErrors* DataAnalysis::PlotEffMCNP();
 		void PlotAllEfficiency();
 		void PlotSpectra(int i);
 		void PlotAllSpectra();
 		void SetDir(TString d){dataDir = d;};
+		void ReadEffFile(TString filename,std::vector<double> &xList,std::vector<double> &yList,std::vector<double> &yErrorsList);
 
 	private:
 		double GetRateOfPeakComputom(TH1D *hist);
 		//double eff_fun(double *x,double *par);
-double GetNetArea( TH1D *h,int bini,int winbin=10);
+		double GetNetArea( TH1D *h,int bini,int winbin=10);
 		double GetArea( TH1D *h, double e);
 		void AnalyzeSpectra(TH1D *h,std::vector<double> &peakAddr,std::vector<double> &peakArea);
 		TF1* getFitFunction(TString funname);
@@ -187,23 +188,6 @@ void DataAnalysis::ReadMacfile(TString &macFile)
 
 double DataAnalysis::GetNetArea( TH1D *h,int bin,int winbin)
 {
-	/*
-	double sum=0;
-	Int_t dn=10;
-	Int_t dbg=5;
-	double bg=0;
-	Int_t k=0;
-	for(int i=-dn;i<dn;i++)
-	{
-		sum += h->GetBinContent(bin+i);
-		if(i>dbg ||i<-dbg)
-		{
-			bg += h->GetBinContent(bin+i);
-			k++;
-		}
-	}
-	return (sum-(1.*dn*bg/k));
-	*/
 	double grossArea=0.;
 	double netArea=0.;
 	TH1* bg = h->ShowBackground(20,"compton");
@@ -215,7 +199,7 @@ double DataAnalysis::GetNetArea( TH1D *h,int bin,int winbin)
 double DataAnalysis::GetArea( TH1D *h, double energy)
 {
 	int bin = h->FindBin(energy);
-	return (GetNetArea(h, bin));
+	return (GetNetArea(h, bin,10));
 }
 
 void DataAnalysis::AnalyzeSpectra(TH1D *h,std::vector<double> &peakAddr,std::vector<double> &peakArea)
@@ -256,9 +240,13 @@ TGraphErrors* DataAnalysis::PlotEffMC(int index )
 	printf("%s\n",fileList[index].Data());
 	TF1 *fun_eff=0;
 	fun_eff = getFitFunction(effName);
-	TF1 *fun_correct=  new TF1("fun_correct",correct,0,90,0);
+	fun_eff->SetLineColor(2+index);
+	//TF1 *fun_correct=  new TF1("fun_correct",correct,0,90,0);
 	TGraphErrors *g_eff = new TGraphErrors(peakAddr.size());
-
+	TF1 fun_correct("fun_correct",correct,0,90,0);
+	double ang=30.;
+	if(index==0||index==1)
+		ang=90.;
 	for(int i=0; i<speakAddr.size();i++)
 	{
 		int k=0;
@@ -267,10 +255,10 @@ TGraphErrors* DataAnalysis::PlotEffMC(int index )
 		{
 			if(TMath::Abs(peakAddr[k] - speakAddr[i]) < shield )
 			{
-				g_eff->SetPoint(i,peakAddr[k],fun_correct->Eval(30) *peakArea[k]/speakArea[i]);
-				g_eff->SetPointError(i,0,fun_correct->Eval(30) *TMath::Sqrt(1./peakArea[k]+1./speakArea[i])*(peakArea[k]/speakArea[i]));
+				g_eff->SetPoint(i,peakAddr[k],fun_correct.Eval(ang) *peakArea[k]/speakArea[i]);
+				g_eff->SetPointError(i,0,fun_correct.Eval(ang) *TMath::Sqrt(1./peakArea[k]+1./speakArea[i])*(peakArea[k]/speakArea[i]));
 				double dif=( (g_eff->GetY())[i] - fun_eff->Eval(peakAddr[k]) )/fun_eff->Eval(peakAddr[k]) ;
-				printf("%d\t%6.3lf\t%8.2lf\t%8.2lf\t%8.5lf\t%8.2lf\n",i,peakAddr[k],speakArea[i],peakArea[k],(g_eff->GetY())[i], 100*dif);
+				printf("%d\t%8.4lf\t%8.3lf\t%8.3lf\t%8.5lf\t%8.2lf\n",i,peakAddr[k],speakArea[i],peakArea[k],(g_eff->GetY())[i], 100*dif);
 				break;
 			}
 			k++;
@@ -285,7 +273,7 @@ TGraphErrors* DataAnalysis::PlotEffMC(int index )
 	g_eff->GetXaxis()->CenterTitle();
 	g_eff->GetYaxis()->SetTitle("Efficiency");
 	g_eff->GetYaxis()->CenterTitle();
-	delete fun_correct;
+	//	delete fun_correct;
 	return g_eff;
 }
 
@@ -308,7 +296,7 @@ void  DataAnalysis::PlotSpectra(int i)
 	hSource->GetYaxis()->CenterTitle();
 	hSource->Draw("HIST");
 	hSource->ShowBackground(20,"compton same");
-	gPad->SetLogy(1);
+	//gPad->SetLogy(1);
 	gPad->SetGridy(1);
 	gPad->SetGridx(1);
 
@@ -320,10 +308,10 @@ void  DataAnalysis::PlotSpectra(int i)
 	hHPGe->GetYaxis()->CenterTitle();
 	hHPGe->Draw("HIST");
 	hHPGe->ShowBackground(20,"compton same");
-	gPad->SetLogy(1);
+	//gPad->SetLogy(1);
 	gPad->SetGridy(1);
 	gPad->SetGridx(1);
-c1->cd();
+	c1->cd();
 	return ;
 }
 
@@ -376,48 +364,32 @@ TGraphErrors* DataAnalysis::PlotEffMCNP()
 	gr->GetYaxis()->CenterTitle();
 	return gr;
 }
-TGraphErrors* DataAnalysis::PlotEffExperiment()
+TGraphErrors* DataAnalysis::PlotEffExperiment(TString fname)
 {
 	TString dir = gSystem->UnixPathName(gInterpreter->GetCurrentMacroName());
 	dir.ReplaceAll("dataAnalysis.C","");
 	dir.ReplaceAll("/./","/");
-	ifstream inf;
-	inf.open(Form("%seff_80mm.Txt",dir.Data()));
-	if(!(inf.is_open()))
-	{
-		printf("open eff file failed!\n");
-		return 0;
-	}
 
-	int i=0; 
 	std::vector<double> xList;
 	std::vector<double> yList;
 	std::vector<double> yErrorsList;
-	string str_tmp;
-	while(getline(inf,str_tmp)) {
-		i++;
-		double x,y,yFit,yError,yDelta; 
-		if(i>5){
-			sscanf(str_tmp.c_str(),"%lf%lf%lf%lf",&x, &y, &yFit, &yError);
-			xList.push_back(x*0.001);
-			yList.push_back(y);
-			yDelta =TMath::Abs( y * yError *0.01);
-			//cout<<yError<<"\t"<<yDelta<<endl;
-			yErrorsList.push_back(yDelta);
-		}
-	}
-	inf.close();
+	//	TString fname("eff_80mm.Txt");
+	TString pathName;
+	pathName = dir + "data/";
+	pathName  += fname;
+	ReadEffFile(pathName,xList,yList,yErrorsList);
 
 	TGraphErrors *gr = new TGraphErrors((Int_t)xList.size(),&xList[0],&yList[0],0,&yErrorsList[0]);
 	TF1 *fun_fit = 0;// new TF1("eff_funExp",eff_fun,0.039,1.5,6);
 	TString effName("eff_funExp");
 	printf("%s\n",effName.Data());
 	fun_fit = getFitFunction(effName);
+	fun_fit->SetLineColor(1);
 	gr->Fit(fun_fit,"R+");
 	gr->SetMarkerStyle(5);
 	//	gr->SetLineColor(5);
-	for(int i=0;i<xList.size();i++)
-		printf("%d\t%8.4lf\t%8.4lf\t%8.4lf\n",i,xList[i],yList[i],100*(yList[i] -fun_fit->Eval(xList[i]))/ fun_fit->Eval(xList[i]));
+	//for(int i=0;i<xList.size();i++)
+	//	printf("%d\t%8.4lf\t%8.4lf\t%8.4lf\n",i,xList[i],yList[i],100*(yList[i] -fun_fit->Eval(xList[i]))/ fun_fit->Eval(xList[i]));
 
 	return gr;
 }
@@ -435,12 +407,20 @@ void DataAnalysis::PlotAllEfficiency()
 	}
 	if(1)
 	{
+		TString fname[6]={"eff_ba133_00_20130325.Txt", "eff_ba133_04_20130415.Txt"
+			,"eff_ba133_08_20130502.Txt","eff_ba133_12_20130316.Txt"
+				,"eff_ba133_16_20130422.Txt","eff_ba133_20_20130318.Txt" };		
+		TString legendName[]={"0cm","4cm","8cm","12cm","16cm","20cm"};
+		for(int i=0;i<6;i++)
+		{
+		//TString fname("eff_80mm.Txt");
 		TGraphErrors *gr = 0;
-		gr= PlotEffExperiment();
+		gr= PlotEffExperiment(fname[i]);
 		mg->Add(gr);
-		leg->AddEntry(gr,"Experiment","lep");
+		leg->AddEntry(gr,legendName[i].Data(),"lep");
 		//		gr = PlotEffMCNP();
 		//		mg->Add(gr);
+		}
 	}
 	TCanvas* c4 = new TCanvas("effGr", "  ");
 	mg->Draw("AP");
@@ -484,6 +464,32 @@ int  DataAnalysis::ReadFile(const std::vector<TString> fList)
 	return 1;
 }
 
+void DataAnalysis::ReadEffFile(TString filename,std::vector<double> &xList,std::vector<double> &yList,std::vector<double> &yErrorsList)
+{
+	ifstream inf;
+	inf.open(filename.Data());
+	if(!(inf.is_open()))
+	{
+		printf("open file failed! %s\n",filename.Data());
+		return;
+	}
+
+	int i=0; 
+	string str_tmp;
+	while(getline(inf,str_tmp)) {
+		i++;
+		double x,y,yFit,yError,yDelta; 
+		if(i>5){
+			sscanf(str_tmp.c_str(),"%lf%lf%lf%lf",&x, &y, &yFit, &yError);
+			xList.push_back(x*0.001);
+			yList.push_back(y);
+			yDelta =TMath::Abs( y * yError *0.01);
+			yErrorsList.push_back(yDelta);
+		}
+	}
+	inf.close();
+}
+
 void dataAnalysis()
 {
 	DataAnalysis *da = new DataAnalysis();
@@ -498,38 +504,50 @@ void dataAnalysis()
 		"plane20mmd90mmdl7cover3mm"
 		};
 		*/
-	TString fileName[]={
+	/*	TString fileName[]={
 		"pointd90mmdl07cover3mm",
-		"pointd90mmdl08cover3mm",
-		"pointd90mmdl09cover3mm",
-		"pointd90mmdl10cover3mm",
-		"pointd90mmdl12cover3mm",
-		"pointd90mmdl13cover3mm",
-		"pointd90mmdl14cover3mm",
-		"pointd90mmdl15cover3mm",
-		"pointd90mmdl16cover3mm",
-		"pointd90mmdl17cover3mm",
-		"pointd90mmdl18cover3mm",
-		"pointd90mmdl20cover3mm"
+	//		"pointd90mmdl08cover3mm",
+	//		"pointd90mmdl09cover3mm",
+	//		"pointd90mmdl10cover3mm",
+	//		"pointd90mmdl11cover3mm",
+	"pointd90mmdl12cover3mm",
+	"pointd90mmdl13cover3mm",
+	"pointd90mmdl14cover3mm",
+	"pointd90mmdl15cover3mm",
+	//		"pointd90mmdl16cover3mm",
+	//		"pointd90mmdl17cover3mm",
+	//		"pointd90mmdl18cover3mm",
+	//		"pointd90mmdl20cover3mm"
 
-		};
+	};
+	*/	/*TString fileName[]={
+		  "pointd87mmdl15cover3mm",
+		  "pointd88mmdl15cover3mm",
+		  "pointd89mmdl15cover3mm",
+		  "pointd90mmdl15cover3mm",
+		  "pointd91mmdl15cover3mm",
+		  "pointd92mmdl15cover3mm",
+		  "pointd93mmdl15cover3mm",
+		  };*/
 	/*TString fileName[]={
-		"pointd87mmdl15cover3mm",
-		"pointd88mmdl15cover3mm",
-		"pointd89mmdl15cover3mm",
-		"pointd90mmdl15cover3mm",
-		"pointd91mmdl15cover3mm",
-		"pointd92mmdl15cover3mm",
-		"pointd93mmdl15cover3mm",
-	};*/
-		/*TString fileName[]={
 	  "pointd90mmdl15cover3mm"
 	  };*/
-	for(int i=0; i<12;i++)
+	TString fileName[]={
+		"point10mm",
+		"point50mm",
+		"point90mm",
+		"point130mm",
+		"point170mm",
+		"point210mm",
+		"point250mm"
+	};
+	int num =7;
+	for(int i=0; i<num;i++)
 		fileList.push_back(fileName[i]);
-//	TString dir("pointdl15cover3mm");
-//	TString dir("pointd90mmdl15cover3mmmylar");
-	TString dir("pointd90mmdl");
+	//	TString dir("pointdl15cover3mm");
+	//	TString dir("pointd90mmdl15cover3mmmylar");
+	//	TString dir("pointd90dl_new");
+	TString dir("point");
 	da->SetDir(dir);
 	/*
 	   "output_point_80mm",
