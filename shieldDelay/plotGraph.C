@@ -77,7 +77,7 @@ void drawTotalAttenuation()
 		"W95Ni1Fe1","W95Ni7Fe3","Fe",
 		"Pb","Al","Cu"
 	};
-	int num = 3;
+	int num = 9;
 
 	TNtupleD *ntuple;
 	TMultiGraph *mg = new TMultiGraph();
@@ -121,6 +121,8 @@ void drawTotalAttenuation()
 	mg->GetYaxis()->CenterTitle();
 	gPad->Update();	
 
+	//mg->GetXaxis()->SetRangeUser(0.01,15.);
+	//mg->GetXaxis()->SetLimits(0.01,15.);
 	c3->BuildLegend();
 }
 
@@ -128,7 +130,7 @@ void plotGraph()
 {
 	drawTotalAttenuation();
 
-//	TString mat("Fe");
-//	drawMaterial( mat);
+	TString mat("Fe");
+	drawMaterial( mat);
 
 }
