@@ -15,6 +15,205 @@ double eff_fun(double *x,double *par);
 double eff_fun1(double *x,double *par);
 Double_t correct(Double_t *x, Double_t *par);
 
+class Spectra{
+	public:
+		Spectra(TH1D *h,TString fn);
+		virtual ~Spectra();
+
+		void SetTitle(const TString fn){fileTitle = fn;};
+		TString GetTitle(){return fileTitle;};
+		std::vector<double> GetPeakAddr(){return peakAddr;}; 
+		std::vector<double> GetPeakArea(){return peakArea;}; 
+		std::vector<double> GetbgArea(){return bgArea;}; 
+	private:
+		double GetRateOfPeakComputom(TH1D *hist);
+		double GetBackground(int bin,int winbin);
+		double GetBackground(double energy,int winbin);
+		double GetArea( int bin,int winbin);
+		double GetNetArea( double energy,int winbin=20);
+		void AnalyzeSpectra();
+
+	private:
+		TH1D *pSpectra;
+		TString fileTitle;
+		std::vector<double> peakAddr;
+		std::vector<double> peakArea;
+		std::vector<double> bgArea;
+};
+
+Spectra::Spectra(TH1D *h,TString fn)
+{
+	pSpectra = h->DrawCopy();
+	fileTitle =fn;
+	AnalyzeSpectra();
+
+}
+
+Spectra::~Spectra()
+{
+	delete pSpectra;
+}
+
+void Spectra::AnalyzeSpectra()
+{
+	TSpectrum *sp = new TSpectrum();
+	Int_t nfound = sp->Search(pSpectra,2,"nodraw");
+	printf("%s found %d peaks to fit\n",pSpectra->GetTitle(),nfound);
+	TH1* bg = pSpectra->ShowBackground(20,"compton");
+
+	for(int i=0; i < nfound;i++)
+	{
+		peakAddr.push_back((double)( (sp->GetPositionX())[i]));
+	}
+	std::sort(peakAddr.begin(),peakAddr.end());
+	for(int i=0; i < nfound;i++)
+	{
+		double area = 0;
+		double bgr = 0;
+		int winbin =9;
+		area = GetNetArea(peakAddr[i],winbin);
+		peakArea.push_back(area);
+		bgr = GetBackground(peakAddr[i],winbin);
+		bgArea.push_back(bgr);
+	}
+
+	delete sp;
+}
+
+double Spectra::GetRateOfPeakComputom(TH1D *hist)
+{
+	Int_t binmin=0,binmax=0;
+
+	binmin=hist->FindFixBin(1.040);
+	binmax=hist->FindFixBin(1.096);
+	printf("d_bin=%d - %d = %d\n",binmax,binmin,binmax-binmin);
+	Double_t sum=hist->Integral(binmin,binmax);
+	return sum/(binmax-binmin);
+}
+
+double Spectra::GetArea(int bin,int winbin)
+{
+	double area=0.;
+	int halfWin = TMath::CeilNint(0.5*winbin);
+	area = pSpectra->Integral(bin-halfWin ,bin+halfWin );
+	return (area );
+}
+double Spectra::GetNetArea( double energy,int winbin)
+{
+	int bin = pSpectra->FindBin(energy);
+	double bgArea=0.;
+	double grossArea=0.;
+	bgArea =this->GetBackground(h,bin,winbin);
+	grossArea =this->GetArea(h,bin,winbin);
+	return (grossArea -bgArea);
+}
+
+double Spectra::GetBackground( int bin,int winbin)
+{	
+	double bgArea=0.;
+	TH1* bg = pSpectra->ShowBackground(20,"compton");
+	bgArea = this->GetArea((TH1D*)bg,bin,winbin);
+	return (bgArea );
+}
+
+double Spectra::GetBackground( double energy,int winbin)
+{
+	int bin = pSpectra->FindBin(energy);
+	double bgArea =0.;
+	bgArea = this->GetBackground(h,bin,winbin);
+	return (bgArea);
+}
+
+class Efficiency{
+	public:
+Efficiency();
+~Efficiency();
+void Calculate();
+
+	private:
+TString title;
+TGraphErrors *effLine;
+
+Spectra *pSource;
+Spectra *pResponse;
+}
+
+Efficiency::Efficiency()
+{
+
+effLine = new TGraphErrors();
+pSource = new Spectra ();
+pResponse = new Spectra ();
+}
+
+Efficiency::~Efficiency()
+{
+	delete effLine; 
+	delete pSource; 
+	delete pResponse ; 
+}
+
+void Efficiency::Calculate()
+{
+	TString titleName(fileList[index]);
+	titleName.ReplaceAll(".root","");
+	TString tn(titleName);
+
+	Spectra *pSource = new Spectra(hSource,tn + "Source");
+	Spectra *pResponse= new Spectra(hHPGe,tn + "Response");
+
+	int lineColor=1;
+	lineColor = 1+index;
+	if(index > 8) lineColor++;
+	TString effName;
+	effName = "eff_" +titleName;
+	printf("%s\n",fileList[index].Data());
+	TF1 *fun_eff=0;
+	fun_eff = getFitFunction(effName);
+	fun_eff->SetLineColor(lineColor);
+	TGraphErrors *g_eff = new TGraphErrors(peakAddr.size());
+	TF1 fun_correct("fun_correct",correct,0,90,0);
+	double ang=30.;
+	if(titleName.Contains("d11mm") ||titleName.Contains("d10mm")||titleName.Contains("d50mm")||titleName.Contains("90deg"))
+		ang=90.;
+if(titleName.Contains("deg"))
+
+
+	double gemCorrect=fun_correct.Eval(ang);
+	if(titleName.Contains("NG") || titleName.Contains("ISO"))
+		gemCorrect=1.0;
+	for(int i=0,j=0; i<speakAddr.size();i++)
+	{
+		int k=0;
+		double shield = 0.0015;
+		while(k<peakAddr.size())
+		{
+			if(TMath::AreEqualAbs(peakAddr[k], speakAddr[i], shield ))
+			{
+				g_eff->SetPoint(j,peakAddr[k],gemCorrect *peakArea[k]/speakArea[i]);
+				double err = gemCorrect*TMath::Sqrt(1./peakArea[k]+1./speakArea[i])*(peakArea[k]/speakArea[i]);
+				g_eff->SetPointError(j,0,err);
+				double dif=( (g_eff->GetY())[i] - fun_eff->Eval(peakAddr[k]) )/fun_eff->Eval(peakAddr[k]) ;
+				printf("%d\t%8.4lf\t%8.3lf\t%8.3lf\t%8.3lf\t%8.3lf\t%5.3E\t%8.2lf\n",j,peakAddr[k],speakArea[i],sbgArea[i],peakArea[k],bgArea[i],(g_eff->GetY())[i], 100*dif);
+				j++;
+				break;
+			}
+			k++;
+		}
+
+	}
+	g_eff->Fit(fun_eff,"R");
+	PrintChi2(g_eff,fun_eff );
+	g_eff->SetMarkerStyle(20 + index);
+	g_eff->SetLineColor(lineColor);
+	g_eff->SetTitle(titleName);
+	g_eff->GetXaxis()->SetTitle("Energy/MeV");
+	g_eff->GetXaxis()->CenterTitle();
+	g_eff->GetYaxis()->SetTitle("Efficiency");
+	g_eff->GetYaxis()->CenterTitle();
+
+}
+
 class DataAnalysis {
 	public:
 		DataAnalysis();
@@ -27,20 +226,16 @@ class DataAnalysis {
 		TGraphErrors *PlotEffMC(int i);
 		TGraphErrors* PlotEffMCNP();
 		void PlotAllEfficiency();
+		void UseTEfficiency(int index);
 		void PlotSpectra(int i);
 		void PlotAllSpectra();
 		void SetDirName(TString d){dataDirName = d;};
 		void SetDir(TString d){dataDir = d;};
 		void ReadEffFile(TString filename,std::vector<double> &xList,std::vector<double> &yList,std::vector<double> &yErrorsList);
 		void GetFileNameList(bool  flag=0);
+		void ShowInfo();
 
 	private:
-		double GetRateOfPeakComputom(TH1D *hist);
-		double GetBackground( TH1D *h, int bin,int winbin);
-		double GetBackground( TH1D *h, double energy,int winbin);
-		double GetArea( TH1D *h,  int bin,int winbin);
-		double GetNetArea( TH1D *h,double energy,int winbin=20);
-		void AnalyzeSpectra(TH1D *h,std::vector<double> &peakAddr,std::vector<double> &peakArea,std::vector<double> &bgArea);
 
 		TF1* getFitFunction(TString funname);
 		void PrintChi2(TGraph *gr,TF1 *f );
@@ -53,8 +248,6 @@ class DataAnalysis {
 		TString dataDir;
 		TString dataDirName;
 		Bool_t flagEffFit;
-	TMultiGraph *mg;
-	TLegend *leg;
 };
 
 DataAnalysis::DataAnalysis()
@@ -67,15 +260,13 @@ DataAnalysis::DataAnalysis()
 	dir.ReplaceAll("dataAnalysis.C","");
 	dir.ReplaceAll("/./","/");
 	dataDir = dir + "data/";
-
 }
+
 DataAnalysis::~DataAnalysis()
 {
 	//Cleanup
 	delete sourceList;
 	delete HPGeList;
-	delete mg;
-	delete leg;
 }
 TF1* DataAnalysis::getFitFunction(TString funname)
 {
@@ -186,78 +377,9 @@ void DataAnalysis::PlotFWHM()
 	FWHM_cal->Draw("A*");
 }
 
-double DataAnalysis::GetRateOfPeakComputom(TH1D *hist)
-{
-	Int_t binmin=0,binmax=0;
-
-	binmin=hist->FindFixBin(1.040);
-	binmax=hist->FindFixBin(1.096);
-	printf("d_bin=%d - %d = %d\n",binmax,binmin,binmax-binmin);
-	Double_t sum=hist->Integral(binmin,binmax);
-	return sum/(binmax-binmin);
-}
-
 void DataAnalysis::ReadMacfile(TString &macFile)
 {
 
-}
-
-double DataAnalysis::GetArea( TH1D *h,int bin,int winbin)
-{
-	double area=0.;
-	int halfWin = TMath::CeilNint(0.5*winbin);
-	area = h->Integral(bin-halfWin ,bin+halfWin );
-	return (area );
-}
-double DataAnalysis::GetNetArea( TH1D *h, double energy,int winbin)
-{
-	int bin = h->FindBin(energy);
-	double bgArea=0.;
-	double grossArea=0.;
-	bgArea =this->GetBackground(h,bin,winbin);
-	grossArea =this->GetArea(h,bin,winbin);
-	return (grossArea -bgArea);
-}
-
-double DataAnalysis::GetBackground( TH1D *h, int bin,int winbin)
-{	
-	double bgArea=0.;
-	TH1* bg = h->ShowBackground(20,"compton");
-	bgArea = this->GetArea((TH1D*)bg,bin,winbin);
-	return (bgArea );
-}
-
-double DataAnalysis::GetBackground( TH1D *h, double energy,int winbin)
-{
-	int bin = h->FindBin(energy);
-	double bgArea =0.;
-	bgArea = this->GetBackground(h,bin,winbin);
-	return (bgArea);
-}
-
-void DataAnalysis::AnalyzeSpectra(TH1D *h,std::vector<double> &peakAddr,std::vector<double> &peakArea,std::vector<double> &bgArea)
-{
-	TSpectrum *sp = new TSpectrum();
-	Int_t nfound = sp->Search(h,2,"nodraw");
-	printf("%s found %d peaks to fit\n",h->GetTitle(),nfound);
-	TH1* bg = h->ShowBackground(20,"compton");
-
-	for(int i=0; i < nfound;i++)
-	{
-		peakAddr.push_back((double)( (sp->GetPositionX())[i]));
-	}
-	std::sort(peakAddr.begin(),peakAddr.end());
-	for(int i=0; i < nfound;i++)
-	{
-		double area = 0;
-		double bgr = 0;
-		int winbin =10;
-		area = GetNetArea(h,peakAddr[i],winbin);
-		peakArea.push_back(area);
-		bgr = GetBackground(h,peakAddr[i],winbin);
-		bgArea.push_back(bgr);
-	}
-	delete sp;
 }
 
 void DataAnalysis::PrintChi2(TGraph *gr,TF1 *f )
@@ -284,21 +406,16 @@ TGraphErrors* DataAnalysis::PlotEffMC(int index )
 	TH1D *hSource =(TH1D* )sourceList->At(index);
 	TH1D *hHPGe =(TH1D* )HPGeList->At(index);
 
-	std::vector<double> speakAddr;
-	std::vector<double> speakArea;
-	std::vector<double> sbgArea;
-	AnalyzeSpectra(hSource,speakAddr,speakArea,sbgArea);
+	TString titleName(fileList[index]);
+	titleName.ReplaceAll(".root","");
+	TString tn(titleName);
 
-	std::vector<double> peakAddr;
-	std::vector<double> peakArea;
-	std::vector<double> bgArea;
-	AnalyzeSpectra(hHPGe,peakAddr,peakArea,bgArea);
+	Spectra *pSource = new Spectra(hSource,tn + "Source");
+	Spectra *pHPGe= new Spectra(hHPGe,tn + "HPGe");
 
 	int lineColor=1;
 	lineColor = 1+index;
 	if(index > 8) lineColor++;
-	TString titleName(fileList[index]);
-	titleName.ReplaceAll(".root","");
 	TString effName;
 	effName = "eff_" +titleName;
 	printf("%s\n",fileList[index].Data());
@@ -310,15 +427,6 @@ TGraphErrors* DataAnalysis::PlotEffMC(int index )
 	double ang=30.;
 	if(titleName.Contains("d11mm") ||titleName.Contains("d10mm")||titleName.Contains("d50mm")||titleName.Contains("90deg"))
 		ang=90.;
-if(titleName.Contains("10deg"))
-{
-		int in=titleName.Index("deg");
-		ang = 10.;
-}
-if(titleName.Contains("02deg"))
-		ang = 2.;
-if(titleName.Contains("05deg"))
-		ang = 5.;
 	double gemCorrect=fun_correct.Eval(ang);
 	if(titleName.Contains("NG") || titleName.Contains("ISO"))
 		gemCorrect=1.0;
@@ -328,19 +436,19 @@ if(titleName.Contains("05deg"))
 		double shield = 0.0015;
 		while(k<peakAddr.size())
 		{
-			if(TMath::AreEqualAbs(peakAddr[k],speakAddr[i] , shield ))
+			if(TMath::AreEqualAbs(peakAddr[k], speakAddr[i], shield ))
 			{
-				double eff1= gemCorrect *peakArea[k]/speakArea[i];
-				g_eff->SetPoint(j,peakAddr[k],eff1);
+				g_eff->SetPoint(j,peakAddr[k],gemCorrect *peakArea[k]/speakArea[i]);
 				double err = gemCorrect*TMath::Sqrt(1./peakArea[k]+1./speakArea[i])*(peakArea[k]/speakArea[i]);
 				g_eff->SetPointError(j,0,err);
 				double dif=( (g_eff->GetY())[i] - fun_eff->Eval(peakAddr[k]) )/fun_eff->Eval(peakAddr[k]) ;
-				printf("%d\t%8.4lf\t%8.3lf\t%8.3lf\t%8.3lf\t%8.3lf\t%8.5lf\t%8.2lf\n",j,peakAddr[k],speakArea[i],sbgArea[i],peakArea[k],bgArea[i],eff1, 100*dif);
+				printf("%d\t%8.4lf\t%8.3lf\t%8.3lf\t%8.3lf\t%8.3lf\t%5.3E\t%8.2lf\n",j,peakAddr[k],speakArea[i],sbgArea[i],peakArea[k],bgArea[i],(g_eff->GetY())[i], 100*dif);
 				j++;
 				break;
 			}
 			k++;
 		}
+
 	}
 	g_eff->Fit(fun_eff,"R");
 	PrintChi2(g_eff,fun_eff );
@@ -354,6 +462,11 @@ if(titleName.Contains("05deg"))
 	return g_eff;
 }
 
+void DataAnalysis::ShowInfo(int index)
+{
+	printf("%d\t%8.4lf\t%8.3lf\t%8.3lf\t%8.3lf\t%8.3lf\t%5.3E\t%8.2lf\n",j,peakAddr[k],speakArea[i],sbgArea[i],peakArea[k],bgArea[i],(g_eff->GetY())[i], 100*dif);
+}
+
 void  DataAnalysis::PlotSpectra(int i)
 {
 	int entries = sourceList->GetEntries();
@@ -362,28 +475,29 @@ void  DataAnalysis::PlotSpectra(int i)
 	TH1D *hSource =(TH1D* )sourceList->At(i);
 	TH1D *hHPGe =(TH1D* )HPGeList->At(i);
 
+
 	TCanvas* c1 = new TCanvas(fileList[i].Data(), fileList[i].Data());
 	c1->Divide(1,2);
 	c1->cd(1);
-	hSource->SetTitle("Source");
+	hSource->SetTitle("gamma Source");
 	hSource->GetXaxis()->SetTitle("Energy/MeV");
 	hSource->GetXaxis()->CenterTitle();
 	hSource->GetYaxis()->SetTitle("Count");
 	hSource->GetYaxis()->CenterTitle();
 	hSource->Draw("HIST");
-	hSource->ShowBackground(20,"compton same");
+	//hSource->ShowBackground(20,"compton same");
 	gPad->SetLogy(1);
 	gPad->SetGridy(1);
 	gPad->SetGridx(1);
 
 	c1->cd(2);
-	hHPGe->SetTitle("Response");
+	hHPGe->SetTitle("Respond");
 	hHPGe->GetXaxis()->SetTitle("Energy/MeV");
 	hHPGe->GetXaxis()->CenterTitle();
 	hHPGe->GetYaxis()->SetTitle("Count");
 	hHPGe->GetYaxis()->CenterTitle();
 	hHPGe->Draw("HIST");
-	hHPGe->ShowBackground(20,"compton same");
+	//hHPGe->ShowBackground(20,"compton same");
 	gPad->SetLogy(1);
 	gPad->SetGridy(1);
 	gPad->SetGridx(1);
@@ -457,23 +571,43 @@ TGraphErrors* DataAnalysis::PlotEffExperiment(int index)
 	fun_fit->SetLineColor(1);
 	gr->Fit(fun_fit,"R+");
 	printf("Chisquare:%lg\n",fun_fit->GetChisquare());
-	gr->SetMarkerStyle(5);
+	gr->SetMarkerStyle(7);
+	gr->SetLineColor(3);
 	gr->SetTitle(titleName.Data());
 
 	return gr;
 }
+
+void DataAnalysis::UseTEfficiency(int index)
+{
+	TH1D *hSource =(TH1D* )sourceList->At(index);
+	TH1D *hHPGe =(TH1D* )HPGeList->At(index);
+
+	if(TEfficiency::CheckConsistency(*hHPGe,*hSource))
+	{
+		TEfficiency * ef = new TEfficiency(*hHPGe,*hSource); 
+		TCanvas* c4 = new TCanvas("TEfficiency", "  ");
+		ef->Draw("AP");
+	}
+
+}
+
 void DataAnalysis::PlotAllEfficiency()
 {
-	mg = new TMultiGraph();
-	leg = new TLegend(0.1,0.8,0.3,0.9);
+	TMultiGraph *mg = new TMultiGraph();
+	TLegend *leg = new TLegend(0.1,0.8,0.3,0.9);
 
 	for(int i=0;i<sourceList->GetEntries();i++)
 	{
-	//	if(i==2|| i==7|| i==8|| i==9)
-	//	if(i==4|| i==9|| i==10|| i==12)
-	//	if( i==3|| i==5|| i==6)
-//		if( i==8)
-		if(i==1) continue;
+		//	if(i==6|| i==8|| i==11|| i==10)
+		//	if(i==0|| i==5|| i==7|| i==8|| i==9)
+		if( i==0|| i==3|| i==7|| i==11)
+			//if(i==4 || i==1|| i==2 || i==9) continue;
+			//if( i<4 || i==8)
+			//if( i>9 && i<13)
+			//if( i>4 && i<9)
+			//if(i==6) 
+			//	if(i==1) continue;
 		{
 			TGraphErrors *gr = 0;
 			gr = PlotEffMC( i);
@@ -481,12 +615,14 @@ void DataAnalysis::PlotAllEfficiency()
 			leg->AddEntry(gr,gr->GetTitle(),"lep");
 		}
 	}
-	if(0)
+	if(1)
 	{
 		for(int i=0; i< effFileList.size();i++)
 		{
-			if(i == 4)
-{
+			//if(i == 6) continue;
+			if(i==4)
+				//if(i==0|| i==1|| i==2|| i==3|| i==6)
+			{
 				TGraphErrors *gr = 0;
 				gr= PlotEffExperiment(i);
 				mg->Add(gr);
@@ -543,7 +679,7 @@ void DataAnalysis::ReadEffFile(TString filename,std::vector<double> &xList,std::
 		return;
 	}
 
-	cout<<"Read efficiency file "<<filename<<" success!"<<endl;
+	cout<<"Read efficiency file "<<filename<<endl;
 	int i=0; 
 	string str_tmp;
 	while(getline(inf,str_tmp)) {
@@ -581,7 +717,7 @@ void DataAnalysis::GetFileNameList(bool  flag)
 		TSystemFile *file;
 		TString fname;
 		TIter next(files);
-        int i=0;
+		int i=0;
 		while((file=(TSystemFile*)next())){
 			fname = file->GetName();
 			if(!file->IsDirectory() && fname.EndsWith(ext.Data()) )
@@ -589,20 +725,20 @@ void DataAnalysis::GetFileNameList(bool  flag)
 				if(fname.BeginsWith("eff"))
 				{
 					effFileList.push_back(fname.Data());
-					cout<<"Load spectra "<< i<<"th file "<<fname<<" success!"<<endl;
+					cout<< i <<" :Load spectra file "<< fname <<endl;
 				}
 				else
 				{
 					fileList.push_back(fname.Data());
-					cout<<"Load "<< i<<"th efficiency file "<<fname<<" success!"<<endl;
+					cout<< i << " :Load efficiency file "<< fname <<endl;
 				}
-                i++;
+				i++;
 			}
 		}
 	}
 }
 
-void dataAnalysis(TString dirName="point")
+void dataAnalysisDev(TString dirName="point")
 {
 	DataAnalysis *da = new DataAnalysis();
 	da->SetDirName(dirName);
@@ -610,6 +746,9 @@ void dataAnalysis(TString dirName="point")
 	da->GetFileNameList(0);
 	da->ReadFile();
 	da->PlotAllEfficiency();
+	if(0)
+		da->UseTEfficiency(1);
+
 	if(0)
 		da->PlotAllSpectra();
 
