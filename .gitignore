@@ -10,6 +10,7 @@ bubble_analy/
 xian_experiment/
 DataAnalysis/data/[0-9]*
 DataAnalysis/data/*.jpg
+DataAnalysis/data/
 HPGe_parameter/outfile*
 *.[dD][Oo][Cc]
 *.docx
@@ -23,3 +24,5 @@ HPGe_parameter/outfile*
 *.[Ss]pe
 *.[Cc]hn
 *.[Ss]pc
+
+calculateMDA/*.[Tt]xt
