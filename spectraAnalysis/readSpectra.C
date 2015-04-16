@@ -7,7 +7,9 @@ class Spectra {
 
 		int Read(const TString filename);
 		int Plot();
+		TH1F *GetTH1();
 		void Print();
+		void Reset();
 
 	private:
 		int ReadChn();
@@ -39,6 +41,19 @@ Spectra::~Spectra()
 	//	delete metaData;
 
 }
+void Spectra::Reset()
+{
+	counts.clear();
+	channels=0;
+	liveTime=0.;
+	realTime=0.;
+
+	fileName.Clear();
+	spectraType.Clear();
+	pathDir.Clear();
+};
+
+
 void Spectra::Print()
 {
 	printf("FileName:%s\n",fileName.Data());
@@ -55,11 +70,21 @@ void Spectra::Print()
 
 int Spectra::Plot()
 {
+	TCanvas *c1 = new TCanvas("c1","c1",10,10,1000,600);
+	TH1F *th1;
+	th1 = GetTH1();
+	gPad->SetLogy(1);
+	gPad->SetGridy(1);
+	gPad->SetGridx(1);
+	th1->Draw();
+}
+
+TH1F *Spectra::GetTH1()
+{
 	double xmin=0.;
 	double xmax;
 	xmax=(double)channels;
 	int nbins=channels;
-	TCanvas *c1 = new TCanvas("c1","c1",10,10,1000,600);
 
 	TH1F *h = new TH1F("h"," gamma Spectra",nbins,xmin,xmax);
 	h->SetXTitle("Channel");
@@ -71,10 +96,7 @@ int Spectra::Plot()
 	for(int i=0; i<nbins; i++){
 		h->SetBinContent(i+1,counts[i]);
 	}
-	gPad->SetLogy(1);
-	gPad->SetGridy(1);
-	gPad->SetGridx(1);
-h->Draw();
+	return h;;
 }
 int Spectra::Read(const TString filename)
 {
@@ -97,7 +119,7 @@ int Spectra::Read(const TString filename)
 	input.seekg(0,ios_base::end);
 	istream::pos_type file_size = input.tellg();
 	input.seekg(current_pos);
-
+	//	printf("file size:%d\n",file_size);
 	metaData= new char[file_size];
 	//BYTE * data= new BYTE[file_size];
 	memset(metaData,0,file_size);
@@ -260,19 +282,22 @@ int Spectra::ReadSpc()
 	char SAMDINFO[129];
 	memset(SAMDINFO,0,129);
 	memcpy(SAMDINFO,metaData+128*SAMDRP ,128);
-
 	channels= SPCCHN;
-	unsigned int *spectraData = new unsigned int[SPCCHN]; 
-	memcpy(spectraData,metaData+(SPCTRP-1)*128,SPCRCN*128);
+	//channels= 2048;
+	unsigned int *spectraData = new unsigned int[channels]; 
+	//	memcpy(spectraData,metaData+(SPCTRP-1)*128,SPCRCN*128);
+	memcpy(spectraData,metaData+(SPCTRP-1)*128,channels*4);
+	//printf("channel 976:%d\n",spectraData[976]);
 	for(int i=0; i<channels; i++)
 	{
-		counts.push_back(spectraData[i]);
+		counts.push_back((int)spectraData[i]);
 	}
 	delete [] spectraData ;
 	//Short File Name
 	char ACQStr[91];
 	memset(ACQStr,0,91);
 	memcpy(ACQStr,metaData+128*(ACQIRP-1),90);
+	//printf("%s\n",ACQStr);
 	char shortFileName[17];
 	memset(shortFileName,0,17);
 	memcpy(shortFileName,ACQStr,16);
@@ -301,13 +326,14 @@ int Spectra::ReadSpc()
 	else
 		dataTimeStr.Form("19%s-%d-%s %s",yearStr,nMonth,dayStr,timeStr);
 	measureTime.Set(dataTimeStr.Data());
-	//LiveTime and RealTime
-	char liveTimeStr[11];
-	memset(liveTimeStr,0,11);
-	memcpy(liveTimeStr,ACQStr+38,10);
-	char realTimeStr[11];
-	memset(realTimeStr,0,11);
-	memcpy(realTimeStr,ACQStr+48,10);
+	/*	//LiveTime and RealTime
+		char liveTimeStr[11];
+		memset(liveTimeStr,0,11);
+		memcpy(liveTimeStr,ACQStr+38,10);
+		char realTimeStr[11];
+		memset(realTimeStr,0,11);
+		memcpy(realTimeStr,ACQStr+48,10);
+	//	printf("LT:%lf");
 	//sample_desc  
 	char sampleDescStr[129];
 	memset(sampleDescStr,0,129);
@@ -336,6 +362,8 @@ int Spectra::ReadSpc()
 	char CALDESStr[129];
 	memset(CALDESStr,0,129);
 	memcpy(CALDESStr,metaData+128*(CALDES-1),128);
+	*/
+
 	char CALRP1Str[129];
 	memset(CALRP1Str,0,129);
 	memcpy(CALRP1Str,metaData+128*(CALRP1-1),128);
@@ -355,12 +383,30 @@ int Spectra::ReadSpc()
 }
 void readSpectra(TString fileName = "lead_shield_background_2.Chn")
 {
-
-	Spectra *sp = new Spectra();
 	//TString fileName("ba133_08_20131016_1.Spc");
 	//TString fileName("ba133_8.Chn");
-//		TString fileName("lead_shield_background_2.Chn");
-	sp->Read(fileName);
-	sp->Print();
-	sp->Plot();
+	//		TString fileName("lead_shield_background_2.Chn");
+	//TString fNames[]={"i1-bg-pump.Chn","i1_p7-s1-U-pump.Spc","i1-s2-dianchenji_U-pump_p1.Spc"};
+	TString fNames[]={"i1-bg-pump.Chn","i1-s2-dianchenji_U-pump_p1.Spc","i1-s1-U-pump_3.Spc"};
+	TH1F *th1;
+	Spectra *sp ;
+	THStack *hs = new THStack("hs","Alpha Spectra");
+	for(int i=0;i<3;i++)
+	{
+		sp= new Spectra();
+		sp->Read(fNames[i]);
+		th1=sp->GetTH1();
+
+		//	th1->SetFillColor(2+i);
+		th1->SetLineColor(2+i);
+		hs->Add(th1);
+	}
+	hs->Draw("nostack,elp");
+	//	hs->Draw();
+	hs->GetXaxis()->SetTitle("Channel");
+	hs->GetXaxis()->CenterTitle(1);
+	hs->GetYaxis()->SetTitle("counts");
+	hs->GetYaxis()->CenterTitle(1);
+	gPad->SetGrid();
+	gPad->Update();
 }
