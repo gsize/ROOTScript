@@ -14,7 +14,6 @@ Double_t ScaleX(Double_t x)
 	return v;
 }
 
-
 void ScaleAxis(TAxis *a, Double_t (*Scale)(Double_t))
 {
 	if (!a) return; // just a precaution
@@ -208,6 +207,22 @@ void ReadTag()
 	}
 
 }
+void DrawTag(TH1 *h, double xTag, TString strTag)
+{
+double xMin= h->GetXaxis()->GetXmin();
+double xMax= h->GetXaxis()->GetXmax();
+
+        if(xTag > xMin && xTag < xMax)
+{
+		TLatex *tex = new TLatex(xTag,h->GetBinContent(h->FindBin(xTag)),strTag.Data());
+		tex->SetTextSize(0.02688601);
+		tex->SetLineWidth(2);
+		//tex->SetTextAlign(12);
+		tex->SetTextAngle(90.);
+		tex->Draw();
+}
+}
+
 void spectrum_chn_plot()
 {
 
@@ -230,7 +245,7 @@ void spectrum_chn_plot()
 	TCanvas *c1 = new TCanvas("c1","c1",10,10,1000,600);
 
 	TH1F *h = new TH1F("h"," "/*"^{230}Pa Spectra"*/,nbins,xmin,xmax);
-	TH1F *h_copy = new TH1F("h"," "/*"^{230}Pa Spectra"*/,nbins,xmin,xmax);
+	//TH1F *h_copy = new TH1F("h"," "/*"^{230}Pa Spectra"*/,nbins,xmin,xmax);
 	h->SetXTitle("Channel");
 	h->GetXaxis()->CenterTitle(1);
 	h->SetYTitle("counts");
@@ -244,12 +259,13 @@ void spectrum_chn_plot()
 	//for(int i=0; i<nbin; i++) h->SetBinContent(i+1,fast_log(ptra[i]));
 	for(int i=0; i<nbin; i++){
 		h->SetBinContent(i+1,ptra[i]);
-		h_copy->SetBinContent(i+1,ptra[i]);
+		//h_copy->SetBinContent(i+1,ptra[i]);
 	}
 	h->GetXaxis()->SetRange(3000,7500);
 
-	TPad *pad1 = new TPad("pad1","p1",0.3,0.5,0.85,0.7);;
+	TPad *pad1 = new TPad("pad1","p1",0.5,0.6,0.85,0.9);;
 	pad1->cd();
+TH1F *h_copy = h->Clone();
 	gPad->SetLogy(1);
 	h_copy->GetXaxis()->SetRange(1,8192);
 	h_copy->SetStats(0);
@@ -284,8 +300,13 @@ void spectrum_chn_plot()
 
 	TLatex *tex;
 	TString str_tmp;
+double xMin= h_copy->GetXaxis()->GetXmin();
+double xMax= h_copy->GetXaxis()->GetXmax();
+cout<<xMin<<":"<<xMax<<endl;
 	for(int i=0;i< 19;i++)
 	{
+        if(d_tmp[i*3 ] > xMin && d_tmp[i*3 ] < xMax)
+{
 		str_tmp.Form("%.2fkeV %s",d_tmp[i*3 ], iso_name[i].Data());
 		Int_t bin_tmp= (int)((d_tmp[i*3]-0.171)/0.136)+4;
 		//tex = new TLatex(bin_tmp,h->GetBinContent(bin_tmp)+1,str_tmp.Data());
@@ -295,6 +316,7 @@ void spectrum_chn_plot()
 		//tex->SetTextAlign(12);
 		tex->SetTextAngle(90.);
 		tex->Draw();
+}
 	}
 	pad1 ->Draw();
 
