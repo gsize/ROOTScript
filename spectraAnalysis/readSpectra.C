@@ -219,56 +219,18 @@ int Spectra::ReadChn()
 
 int Spectra::ReadSpc()
 {
-	//	map<string,int> mapData ;
 	int shortSize=2;
 	int floatSize=4;
 	int doubleSize=8;
-	/*
-	   string mapTag[] ={
-	   "ACQIRP", "SAMDRP", "DETDRP", "EBRDESC",
-	   "ANARP1", "ANARP2", "ANARP3", "ANARP4",
-	   "SRPDES", "IEQDESC","GEODES", "MPCDESC",
-	   "CALDES", "CALRP1", "CALRP2", "SPCTRP",
-	   "SPCRCN", "SPCCHN", "ABSTCH", "ACQTIM",
-	   "ACQTI8", "SEQNUM", "MCANU",  "SEGNUM",
-	   "MCADVT", "CHNSRT", "RLTMDT", "LVTMDT"
-	   };
-	   for(int i=0;i<34;i++)
-	   {
-	   short d;
-	   memcpy(&d,metaData+4+i*shortSize,shortSize);
-	   mapData[mapTag[i]]=(int)d;
-	   }
-	   */
-	short	ACQIRP, SAMDRP, DETDRP, EBRDESC,
-			ANARP1, ANARP2, ANARP3, ANARP4,
-			SRPDES, IEQDESC,GEODES, MPCDESC,
-			CALDES, CALRP1, CALRP2, SPCTRP,
-			SPCRCN, SPCCHN, ABSTCH, ACQTIM,
-			ACQTI8, SEQNUM, MCANU,  SEGNUM,
-			MCADVT, CHNSRT;
-	short d[15];
-	double RLTMDT, LVTMDT;
-	for(int i=0;i<15;i++)	
-	{
-		memcpy(d+i,metaData+8+i*shortSize,shortSize);
-	}
-	ACQIRP = d[0]; SAMDRP = d[1]; DETDRP = d[2]; EBRDESC = d[3];
-	ANARP1 = d[4]; ANARP2 = d[5]; ANARP3 = d[6]; ANARP4 = d[7];
-	SRPDES = d[8]; IEQDESC = d[9];GEODES = d[10]; MPCDESC = d[11];
-	CALDES = d[12]; CALRP1 = d[13]; CALRP2 = d[14];
 
+short	ACQIRP,CALRP1,SPCTRP,SPCRCN,SPCCHN;
+	double RLTMDT, LVTMDT;
+	memcpy(&ACQIRP,metaData+8,shortSize);
+	memcpy(&CALRP1,metaData+34,shortSize);
 	memcpy(&SPCTRP,metaData+60,shortSize);
 	memcpy(&SPCRCN,metaData+62,shortSize);
 	memcpy(&SPCCHN,metaData+64,shortSize);
-	memcpy(&ABSTCH,metaData+66,shortSize);
-	memcpy(&ACQTIM,metaData+68,shortSize);
-	memcpy(&ACQTI8,metaData+70,floatSize);
-	memcpy(&SEQNUM,metaData+74,doubleSize);
-	memcpy(&MCANU,metaData+82,shortSize);
-	memcpy(&SEGNUM,metaData+84,shortSize);
-	memcpy(&MCADVT,metaData+86,shortSize);
-	memcpy(&CHNSRT,metaData+88,shortSize);
+
 	//Get RealTime and LiveTime
 	float d1;
 	memcpy(&d1,metaData+90,floatSize);
@@ -276,14 +238,7 @@ int Spectra::ReadSpc()
 	memcpy(&d1,metaData+94,floatSize);
 	liveTime= (double)d1;
 
-	char ACQINFO[129];
-	memset(ACQINFO,0,129);
-	memcpy(ACQINFO,metaData+128*ACQIRP,128);
-	char SAMDINFO[129];
-	memset(SAMDINFO,0,129);
-	memcpy(SAMDINFO,metaData+128*SAMDRP ,128);
 	channels= SPCCHN;
-	//channels= 2048;
 	unsigned int *spectraData = new unsigned int[channels]; 
 	//	memcpy(spectraData,metaData+(SPCTRP-1)*128,SPCRCN*128);
 	memcpy(spectraData,metaData+(SPCTRP-1)*128,channels*4);
@@ -294,10 +249,10 @@ int Spectra::ReadSpc()
 	}
 	delete [] spectraData ;
 	//Short File Name
-	char ACQStr[91];
-	memset(ACQStr,0,91);
-	memcpy(ACQStr,metaData+128*(ACQIRP-1),90);
-	//printf("%s\n",ACQStr);
+	char ACQStr[129];
+	memset(ACQStr,0,129);
+	memcpy(ACQStr,metaData+128*(ACQIRP-1),128);
+	printf("ACQSt:r%s\n",ACQStr);
 	char shortFileName[17];
 	memset(shortFileName,0,17);
 	memcpy(shortFileName,ACQStr,16);
@@ -326,50 +281,10 @@ int Spectra::ReadSpc()
 	else
 		dataTimeStr.Form("19%s-%d-%s %s",yearStr,nMonth,dayStr,timeStr);
 	measureTime.Set(dataTimeStr.Data());
-	/*	//LiveTime and RealTime
-		char liveTimeStr[11];
-		memset(liveTimeStr,0,11);
-		memcpy(liveTimeStr,ACQStr+38,10);
-		char realTimeStr[11];
-		memset(realTimeStr,0,11);
-		memcpy(realTimeStr,ACQStr+48,10);
-	//	printf("LT:%lf");
-	//sample_desc  
-	char sampleDescStr[129];
-	memset(sampleDescStr,0,129);
-	memcpy(sampleDescStr,metaData+128*(SAMDRP-1),128);
-	//det_desc
-	char detDescStr[129];
-	memset(detDescStr,0,129);
-	memcpy(detDescStr,metaData+128*(DETDRP-1),128);
-	//det_ebr_desc
-	char detEbrStr[129];
-	memset(detEbrStr,0,129);
-	memcpy(detEbrStr,metaData+128*(EBRDESC-1),128);
-	//	printf("%s  %s  %s\n",sampleDescStr,detDescStr,detEbrStr);
-	//analysis_param
-	char ANARP1Str[129];
-	memset(ANARP1Str,0,129);
-	memcpy(ANARP1Str,metaData+128*(ANARP1-1),128);
-	char ANARP2Str[129];
-	memset(ANARP2Str,0,129);
-	memcpy(ANARP2Str,metaData+128*(ANARP2-1),128);
-	char ANARP3Str[129];
-	memset(ANARP3Str,0,129);
-	memcpy(ANARP3Str,metaData+128*(ANARP3-1),128);
-	//	printf("%s  %s  %s\n",ANARP1Str,ANARP2Str,ANARP3Str);
-
-	char CALDESStr[129];
-	memset(CALDESStr,0,129);
-	memcpy(CALDESStr,metaData+128*(CALDES-1),128);
-	*/
 
 	char CALRP1Str[129];
 	memset(CALRP1Str,0,129);
 	memcpy(CALRP1Str,metaData+128*(CALRP1-1),128);
-	char CALRP2Str[129];
-	memset(CALRP2Str,0,129);
-	memcpy(CALRP2Str,metaData+128*(CALRP2-1),128);
 
 	//Get energy calibration
 	float energy_par_t;
@@ -390,8 +305,12 @@ void readSpectra(TString fileName = "lead_shield_background_2.Chn")
 	TString fNames[]={"i1-bg-pump.Chn","i1-s2-dianchenji_U-pump_p1.Spc","i1-s1-U-pump_3.Spc"};
 	TH1F *th1;
 	Spectra *sp ;
+		sp= new Spectra();
+		sp->Read(fileName);
+		th1=sp->GetTH1();
 	THStack *hs = new THStack("hs","Alpha Spectra");
-	for(int i=0;i<3;i++)
+/*	
+ 	for(int i=0;i<3;i++)
 	{
 		sp= new Spectra();
 		sp->Read(fNames[i]);
@@ -401,6 +320,9 @@ void readSpectra(TString fileName = "lead_shield_background_2.Chn")
 		th1->SetLineColor(2+i);
 		hs->Add(th1);
 	}
+	*/
+	sp->Print();
+		hs->Add(th1);
 	hs->Draw("nostack,elp");
 	//	hs->Draw();
 	hs->GetXaxis()->SetTitle("Channel");
