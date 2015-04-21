@@ -20,6 +20,16 @@ double eff_fun(double *x, double *par)
 	return (TMath::Exp(eff));
 }
 
+double eff_fun1(double *x, double *par)
+{
+	double eff=0.;
+	for(int i=0;i<5;i++)
+	{
+		eff += par[i] * TMath::Power(TMath::Log(x[0]),i);
+	}
+	return (TMath::Exp(eff));
+}
+
 double MDA(double bg, double eff, double re,double t)
 {
 	double k=4.65;
@@ -34,10 +44,19 @@ int plotLine(TString lineName, int i, double *x,double *y, double *yErrors)
 	TCanvas* c1 = new TCanvas(lineName, lineName);
 	TGraphErrors *gr = new TGraphErrors(i,x,y, 0 ,yErrors);
 	TF1 *fun_fit = 0;
+	bool flag=0;
 	if(lineName.Contains("eff"))
 	{
-		fun_fit = new TF1(lineName,eff_fun,0.030,1.500,6);
-		fun_fit->SetParameters(-0.349521, -6.056041, 0.605647, -0.068800, 0.003151, -0.000059);
+		if(flag)
+		{
+			fun_fit = new TF1(lineName,eff_fun,0.045,1.500,6);
+			fun_fit->SetParameters(-0.349521, -6.056041, 0.605647, -0.068800, 0.003151, -0.000059);
+		}
+		else
+		{
+			fun_fit = new TF1(lineName,eff_fun1,0.045,1.500,5);
+			fun_fit->SetParameters(-7.259, -0.805, -0.0669, -0.179,-0.0806);
+		}
 	}else{
 		fun_fit = new TF1(lineName,"pol2",0.030,1.500);
 	}
@@ -72,21 +91,29 @@ int plotEfficiency()
 	TMultiGraph *mg =new TMultiGraph();
 	TLegend *leg = new TLegend(0.75,0.75,0.9,0.9);
 
-	TString name[6]={"eff_ba133_00_20130325.Txt", "eff_ba133_04_20130415.Txt"
-		,"eff_ba133_08_20130502.Txt","eff_ba133_12_20130316.Txt"
-			,"eff_ba133_16_20130422.Txt","eff_ba133_24_20130318.Txt" };		
-	TString legendName[]={"0cm","4cm","8cm","12cm","16cm","24cm"};
-	for(int i=0;i<6;i++)
+	TString name[7]={"eff_ba133_00_20130325.Txt", "eff_ba133_04_20130415.Txt"
+		,"eff_ba133_08_20130502.Txt","eff_ba133_12_20130316.Txt",
+			"eff_ba133_16_20130422.Txt","eff_ba133_24_20130318.Txt","003.eft" };		
+	TString legendName[]={"1cm","5cm","9cm","13cm","17cm","25cm","9cm_003.eft"};
+	for(int i=0;i<7;i++)
 	{
-		if(i==3 || i == 5) continue;
+		//	if(i==0 || i==1 ||i==2 ||i == 3 ||i == 5) continue;
 		TString pathName;
 		pathName = dir + name[i];
 		ReadFile(pathName,xList,yList,yErrorsList);
 		TGraphErrors *gr = new TGraphErrors((Int_t)xList.size(),&xList[0],&yList[0],0,&yErrorsList[0]);
 		TF1 *fun_fit = 0;
-		fun_fit = new TF1(legendName[i],eff_fun,0.030,1.5,6);
-		//fun_fit->SetParameters(-0.349521, -6.056041, 0.605647, -0.068800, 0.003151, -0.000059);
-		fun_fit->SetParameters(-0.2846, -7.533462, 0.635764, -0.0788, 0.004049, -0.000083);
+		bool flag =0;
+		if(flag)
+		{
+			fun_fit = new TF1(legendName[i],eff_fun,0.030,1.5,6);
+			//fun_fit->SetParameters(-0.349521, -6.056041, 0.605647, -0.068800, 0.003151, -0.000059);
+			fun_fit->SetParameters(-0.2846, -7.533462, 0.635764, -0.0788, 0.004049, -0.000083);
+		}else
+		{
+			fun_fit = new TF1(legendName[i],eff_fun1,0.030,1.500,5);
+			fun_fit->SetParameters(-7.259, -0.805, -0.0669, -0.179,-0.0806);
+		}
 		gr->Fit(fun_fit,"R+");
 		TString outfile;
 		outfile ="outfile" +legendName[i];
@@ -126,17 +153,29 @@ void ReadFile(TString filename,std::vector<double> &xList,std::vector<double> &y
 	}
 
 	int i=0; 
+	bool read_flag=0;
 	string str_tmp;
+
+	if(filename.Contains("003.eft"))
+		read_flag=1;
 	while(getline(in,str_tmp)) {
 		i++;
 		double x,y,yFit,yError,yDelta; 
-		if(i>5){
-			sscanf(str_tmp.c_str(),"%lf%lf%lf%lf",&x, &y, &yFit, &yError);
+		if(read_flag)
+		{
+			sscanf(str_tmp.c_str(),"%lf%lf",&x, &y);
 			xList.push_back(x*0.001);
 			yList.push_back(y);
-			yDelta =TMath::Abs( y * yError *0.01);
-			//cout<<yError<<"\t"<<yDelta<<endl;
-			yErrorsList.push_back(yDelta);
+				yErrorsList.push_back(0.);
+		}
+		else{
+			if(i>5){
+				sscanf(str_tmp.c_str(),"%lf%lf%lf%lf",&x, &y, &yFit, &yError);
+				xList.push_back(x*0.001);
+				yList.push_back(y);
+				yDelta =TMath::Abs( y * yError *0.01);
+				yErrorsList.push_back(yDelta);
+			}
 		}
 	}
 	in.close();
@@ -189,18 +228,15 @@ void ReadAndCalculate(const TString &outfile, TF1 *fun_eff)
 		}
 	}
 	in.close();
-
-	TString outFile;
-	outFile = dir + outfile;
-	//ofstream out;
-	//out.open(outFile.Data());
-	FILE *out;
-	out = fopen(outFile.Data(),"w");
-	for(int ii=0; ii<MDA_list.size(); ii++)
-		fprintf(out,"%8.3lf%8.3lf%8.3lf%15.3lf\n",energy_list[ii],branch_list[ii],eff_list[ii],MDA_list[ii] );
-	//	out<< energy_list[ii]<<"  "<< branch_list[ii]<<"  " <<eff_list[ii]<< "  "<<MDA_list[ii] <<endl;
-	//out.close();
-	fclose(out);
+	/*
+	   TString outFile;
+	   outFile = dir + outfile;
+	   FILE *out;
+	   out = fopen(outFile.Data(),"w");
+	   for(int ii=0; ii<MDA_list.size(); ii++)
+	   fprintf(out,"%8.3lf%8.3lf%8.3lf%15.3lf\n",energy_list[ii],branch_list[ii],eff_list[ii],MDA_list[ii] );
+	   fclose(out);
+	   */
 }
 
 void plotGraph()
@@ -208,12 +244,14 @@ void plotGraph()
 	TString dir = gSystem->UnixPathName(gInterpreter->GetCurrentMacroName());
 	dir.ReplaceAll("plotGraph.C","");
 	dir.ReplaceAll("/./","/");
+
 	TString pathName;
-	pathName = dir + "energy_80mm.Txt";
+
 	std::vector<double> xList;
 	std::vector<double> yList;
 	std::vector<double> yErrorsList;
 
+	pathName = dir + "energy_80mm.Txt";
 	ReadFile(pathName,xList,yList,yErrorsList);
 	TString lineName("Channal");
 	plotLine(lineName,(Int_t)xList.size(),&xList[0],&yList[0],&yErrorsList[0]);
@@ -236,6 +274,14 @@ void plotGraph()
 	plotLine(lineName,(Int_t)xList.size(),&xList[0],&yList[0],&yErrorsList[0]);
 
 	yErrorsList.clear();
+	xList.clear();
+	yList.clear();
+
+
+	pathName = dir + "003.eft";
+	ReadFile(pathName,xList,yList,yErrorsList);
+	lineName = "eff" ;
+	plotLine(lineName,(Int_t)xList.size(),&xList[0],&yList[0],&yErrorsList[0]);
 	xList.clear();
 	yList.clear();
 
