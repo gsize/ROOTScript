@@ -15,6 +15,7 @@ class Spectra {
 		int ReadChn();
 		int ReadSpc();
 		int ReadIEC();
+TString FormatDateTime(char *yearStr,char *monthStr,char *dayStr,char *timeStr);
 
 	private:
 		std::vector<int> counts;
@@ -150,7 +151,26 @@ int Spectra::Read(const TString filename)
 
 	delete [] metaData ;
 }
+TString Spectra::FormatDateTime(char *yearStr,char *monthStr,char *dayStr,char *timeStr)
+{
+	char month[12][4] = {"Jan","Feb","Mar","Apr",
+		"May","Jun","Jul","Aug",
+		"Sep","Oct","Nov","Dec" } ;
+	int nMonth=0;
+	TString monthStr1(monthStr);
+	while(!monthStr1.Contains(month[nMonth]) && nMonth<11)  nMonth++;
+	nMonth++;
+	TString dataTimeStr;
+	if(yearStr[3]=='1')
+	{
+		yearStr[3]=='\0';
+		dataTimeStr.Form("20%s-%d-%s %s",yearStr,nMonth,dayStr,timeStr);
+	}
+	else
+		dataTimeStr.Form("19%s-%d-%s %s",yearStr,nMonth,dayStr,timeStr);
 
+	return dataTimeStr;
+}
 int Spectra::ReadChn()
 {
 	int shortSize=2;
@@ -173,28 +193,19 @@ int Spectra::ReadChn()
 	TString timeStr;
 	timeStr.Form("%s:%s:%s",hourStr,minuteStr,secondStr);
 	//start Acquire Date
-	char monthStr[4],dayStr[3],yearStr[3];
+	char monthStr[4],dayStr[3],yearStr[4];
 	memset(monthStr,0,4);
 	memset(dayStr,0,3);
-	memset(yearStr,0,3);
+	memset(yearStr,0,4);
 	memcpy(dayStr,metaData+16,2);
 	memcpy(monthStr,metaData+18,3);
-	memcpy(yearStr,metaData+21,2);
+	memcpy(yearStr,metaData+21,3);
 
-	char month[12][4] = {"Jan","Feb","Mar","Apr",
-		"May","Jun","Jul","Aug",
-		"Sep","Oct","Nov","Dec" } ;
-	int nMonth=0;
-	TString monthStr1(monthStr);
-	while(!monthStr1.Contains(month[nMonth]) && nMonth<11)  nMonth++;
-	nMonth++;
-	TString dataTimeStr;
-	if(metaData[23]=='1')
-		dataTimeStr.Form("20%s-%d-%s %s",yearStr,nMonth,dayStr,timeStr.Data());
-	else
-		dataTimeStr.Form("19%s-%d-%s %s",yearStr,nMonth,dayStr,timeStr.Data());
+	TString dataTimeStr;	
+	dataTimeStr = FormatDateTime(yearStr,monthStr,dayStr,timeStr.Data());
+
 	measureTime.Set(dataTimeStr.Data());
-	measureTime.Print();
+	//measureTime.Print();
 
 	short chn;
 	memcpy(&chn,metaData+30,2);
@@ -223,7 +234,7 @@ int Spectra::ReadSpc()
 	int floatSize=4;
 	int doubleSize=8;
 
-short	ACQIRP,CALRP1,SPCTRP,SPCRCN,SPCCHN;
+	short	ACQIRP,CALRP1,SPCTRP,SPCRCN,SPCCHN;
 	double RLTMDT, LVTMDT;
 	memcpy(&ACQIRP,metaData+8,shortSize);
 	memcpy(&CALRP1,metaData+34,shortSize);
@@ -252,34 +263,21 @@ short	ACQIRP,CALRP1,SPCTRP,SPCRCN,SPCCHN;
 	char ACQStr[129];
 	memset(ACQStr,0,129);
 	memcpy(ACQStr,metaData+128*(ACQIRP-1),128);
-	printf("ACQSt:r%s\n",ACQStr);
-	char shortFileName[17];
-	memset(shortFileName,0,17);
-	memcpy(shortFileName,ACQStr,16);
 	//Measure DateTime
-	char monthStr[4],dayStr[3],yearStr[3];
+	char monthStr[4],dayStr[3],yearStr[4];
 	memset(monthStr,0,4);
 	memset(dayStr,0,3);
-	memset(yearStr,0,3);
+	memset(yearStr,0,4);
 	memcpy(dayStr,ACQStr+16,2);
 	memcpy(monthStr,ACQStr+19,3);
-	memcpy(yearStr,ACQStr+23,2);
+	memcpy(yearStr,ACQStr+23,3);
 	char timeStr[11];
 	memset(timeStr,0,11);
 	memcpy(timeStr,ACQStr+28,10);
 
-	char month[12][4] = {"Jan","Feb","Mar","Apr",
-		"May","Jun","Jul","Aug",
-		"Sep","Oct","Nov","Dec" } ;
-	int nMonth=0;
-	TString monthStr1(monthStr);
-	while(!monthStr1.Contains(month[nMonth]) && nMonth<11)  nMonth++;
-	nMonth++;
-	TString dataTimeStr;
-	if(ACQStr[25]=='1')
-		dataTimeStr.Form("20%s-%d-%s %s",yearStr,nMonth,dayStr,timeStr);
-	else
-		dataTimeStr.Form("19%s-%d-%s %s",yearStr,nMonth,dayStr,timeStr);
+	TString dataTimeStr;	
+	dataTimeStr = FormatDateTime(yearStr,monthStr,dayStr,timeStr);
+
 	measureTime.Set(dataTimeStr.Data());
 
 	char CALRP1Str[129];
@@ -305,24 +303,24 @@ void readSpectra(TString fileName = "lead_shield_background_2.Chn")
 	TString fNames[]={"i1-bg-pump.Chn","i1-s2-dianchenji_U-pump_p1.Spc","i1-s1-U-pump_3.Spc"};
 	TH1F *th1;
 	Spectra *sp ;
-		sp= new Spectra();
-		sp->Read(fileName);
-		th1=sp->GetTH1();
+	sp= new Spectra();
+	sp->Read(fileName);
+	th1=sp->GetTH1();
 	THStack *hs = new THStack("hs","Alpha Spectra");
-/*	
- 	for(int i=0;i<3;i++)
-	{
+	/*	
+		for(int i=0;i<3;i++)
+		{
 		sp= new Spectra();
 		sp->Read(fNames[i]);
 		th1=sp->GetTH1();
 
-		//	th1->SetFillColor(2+i);
-		th1->SetLineColor(2+i);
-		hs->Add(th1);
+	//	th1->SetFillColor(2+i);
+	th1->SetLineColor(2+i);
+	hs->Add(th1);
 	}
 	*/
 	sp->Print();
-		hs->Add(th1);
+	hs->Add(th1);
 	hs->Draw("nostack,elp");
 	//	hs->Draw();
 	hs->GetXaxis()->SetTitle("Channel");
