@@ -17,9 +17,40 @@ TNtupleD* readData(TString filename)
 		"TotalAttenuationWithCoherentScatt",
 		"TotalAttenuationWithoutCoherentScatt"
 	};
-	TString tag(Form("%s:%s:%s:%s:%s:%s:%s:%s",listTag[0].Data(),listTag[1].Data(),listTag[2].Data(),listTag[3].Data(),listTag[4].Data(),listTag[5].Data(),listTag[6].Data(),listTag[7].Data()));
+	TString tag;
+	for(int i=0;i<8;i++)
+	{
+		tag+=listTag[i];
+		if(i!=7)
+			tag+=":";
+	}
+
 	TNtupleD *ntuple= new TNtupleD(filename.Data(),Form("%s Photon cross section",filename.Data()),tag.Data());
-	int nlines =ntuple->ReadFile(fname.Data(),tag.Data());
+
+	ifstream in;
+	in.open(fname.Data());
+	if(!(in.is_open()))
+	{
+		printf("open file failed! %s\n",filename.Data());
+		return 0;
+	}
+
+	TPMERegexp re(".{7,7}( [0-9]+(\\.[0-9]+)(E|e)(\\+|\\-)[0-9]{2,2}){8,8}");
+//	TPMERegexp re("([0-9]+(\\.[0-9]+)(E|e)(\\+|\\-)[0-9]{2,2} ){7,7}([0-9]+(\\.[0-9]+)(E|e)(\\+|\\-)[0-9]{2,2})");
+	re.Print();
+	string str_tmp;
+
+	double d1,d2,d3,d4,d5,d6,d7,d8;
+	while(getline(in,str_tmp)) {
+		TString str(str_tmp);
+		if(str.Contains((TPRegexp) re))
+		{
+			str.Replace(0,7," ");
+			sscanf(str.Data(),"%lf%lf%lf%lf%lf%lf%lf%lf",&d1,&d2,&d3,&d4,&d5,&d6,&d7,&d8);
+			ntuple->Fill(d1,d2,d3,d4,d5,d6,d7,d8);
+		}
+	}
+	in.close();
 	return ntuple;
 }
 
@@ -85,18 +116,12 @@ void drawTotalAttenuation()
 
 	TString listTag[8]={
 		"PhotonEnergy",
-		"ScatteringCoherent",
-		"ScatteringIncoher",
-		"PhotoElectricAbsorPtion",
-		"PairProductionInNuclearField",
-		"PairProductionInElectronField",
 		"TotalAttenuationWithCoherentScatt",
-		"TotalAttenuationWithoutCoherentScatt"
 	};
 	for(int i=0;i<num;i++)
 	{
 		ntuple = readData(mats[i]);
-		TString tag(Form("%s:%s",listTag[6].Data(),listTag[0].Data()));
+		TString tag(Form("%s:%s",listTag[1].Data(),listTag[0].Data()));
 		ntuple->Draw(tag.Data(),"","goff");
 		gr = new TGraph(ntuple->GetSelectedRows(),ntuple->GetV2(),ntuple->GetV1());
 		gr->SetTitle(mats[i]);
@@ -128,9 +153,9 @@ void drawTotalAttenuation()
 
 void plotGraph()
 {
-	drawTotalAttenuation();
+//		drawTotalAttenuation();
 
-	TString mat("Fe");
-	drawMaterial( mat);
+		TString mat("Fe");
+		drawMaterial( mat);
 
 }
