@@ -20,3 +20,4 @@ NucleiDecay:利用ROOT提供的TGeoElement类计算核素的活度随时间衰�
 
 shidldDelay:显示XCOM输出的物质对光子的衰减参数。
 
+origen2OutputFile:从origen2程序的输出文件中提取所要的数据
