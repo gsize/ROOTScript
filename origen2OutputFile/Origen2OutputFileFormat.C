@@ -20,7 +20,7 @@ void Origen2OutputFileFormat(TString fname="TAPE20d.OUT")
 	string str_tmp;
 	vector<string> vec_str;
 	TPMERegexp re_start("^\\+ +FISSION PRODUCTS +");
-	TPMERegexp re_start1("^0 +[0-9a-zA-z :,]+RADIOACTIVITY...CURIES +");
+	TPMERegexp re_start1("^0 +[0-9a-zA-Z :,]+RADIOACTIVITY...CURIES +");
 	TPMERegexp re_end("^1 +OUTPUT");
 	TPMERegexp re4("^ +TOTAL ");
 	TPMERegexp re(".{12,12}( [0-9]+(\\.[0-9]+)(E|e)(\\+|\\-)[0-9]{2,2}){10,10}");
