@@ -37,7 +37,7 @@ TNtupleD* readData(TString filename)
 
 	TPMERegexp re(".{7,7}( [0-9]+(\\.[0-9]+)(E|e)(\\+|\\-)[0-9]{2,2}){8,8}");
 //	TPMERegexp re("([0-9]+(\\.[0-9]+)(E|e)(\\+|\\-)[0-9]{2,2} ){7,7}([0-9]+(\\.[0-9]+)(E|e)(\\+|\\-)[0-9]{2,2})");
-	re.Print();
+	//re.Print();
 	string str_tmp;
 
 	double d1,d2,d3,d4,d5,d6,d7,d8;
