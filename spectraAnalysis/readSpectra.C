@@ -1,5 +1,4 @@
 //#include <map>
-
 class Spectra {
 	public:
 		Spectra();
@@ -12,10 +11,11 @@ class Spectra {
 		void Reset();
 
 	private:
-		int ReadChn();
-		int ReadSpc();
+		int ReadChn();  //ORTEC spectra .chn
+		int ReadSpc();//ORTEC spectra  .spc
+		int ReadCnf(); //Canberra spectra .cnf
 		int ReadIEC();
-TString FormatDateTime(char *yearStr,char *monthStr,char *dayStr,char *timeStr);
+		TString FormatDateTime(char *yearStr,char *monthStr,char *dayStr,char *timeStr);
 
 	private:
 		std::vector<int> counts;
@@ -29,6 +29,8 @@ TString FormatDateTime(char *yearStr,char *monthStr,char *dayStr,char *timeStr);
 		TString spectraType;
 		TString pathDir;
 		char * metaData;
+
+		UInt_t fileSize;
 };
 
 Spectra::Spectra()
@@ -97,6 +99,7 @@ TH1F *Spectra::GetTH1()
 	for(int i=0; i<nbins; i++){
 		h->SetBinContent(i+1,counts[i]);
 	}
+	//printf("channel 1000: %lf",h->GetBinContent(1000));
 	return h;;
 }
 int Spectra::Read(const TString filename)
@@ -120,28 +123,30 @@ int Spectra::Read(const TString filename)
 	input.seekg(0,ios_base::end);
 	istream::pos_type file_size = input.tellg();
 	input.seekg(current_pos);
-	//	printf("file size:%d\n",file_size);
-	metaData= new char[file_size];
-	//BYTE * data= new BYTE[file_size];
+	metaData= new Char_t[file_size];
 	memset(metaData,0,file_size);
+	fileSize = (UInt_t)file_size;
 
-	input.read(metaData,file_size*sizeof(char));
+	input.read(metaData,file_size*sizeof(Char_t));
 	input.close();
 
-	short d1,d2;
-	memcpy(&d1,metaData,sizeof(short));
-	memcpy(&d2,metaData+2,sizeof(short));
+	Short_t d1,d2;
+	memcpy(&d1,metaData,sizeof(Short_t));
+	memcpy(&d2,metaData+2,sizeof(Short_t));
 	if(d1 == -1)
 	{
 		spectraType.Form("CHN");
 		ReadChn();
-
 	}
 	if(d1==1 &&d2==1)
 	{
 		spectraType.Form("SPC");
 		ReadSpc();
-
+	}
+	if(filename.Contains(".cnf"))
+	{
+		spectraType.Form("CNF");
+		ReadCnf();
 	}
 	if(filename.Contains("IEC"))
 	{
@@ -171,6 +176,95 @@ TString Spectra::FormatDateTime(char *yearStr,char *monthStr,char *dayStr,char *
 
 	return dataTimeStr;
 }
+
+
+int Spectra::ReadCnf()
+{
+	int shortSize=2;
+	int floatSize=4;
+	int intSize=4;
+	int doubleSize=8;
+
+	int acqOffset=0, samOffset=0,effOffset=0,encOffset=0,chanOffset=0;
+	const char *beg = metaData;
+	const char *end =beg + fileSize;
+	for(const char* ptr= beg+ 112; ptr +48 <end;ptr+= 48)
+	{
+		unsigned int offset=0;
+		memcpy(&offset,ptr+10,intSize);
+		if((ptr[1] == 0x20 && ptr[2] == 0x01) || ptr[1] == 0 ||ptr[2]==0)
+		{
+			switch(ptr[0]){
+				case 0:
+					if(acqOffset == 0)
+						acqOffset = offset;
+					else
+						encOffset = offSet;
+					break;
+				case 1:
+					if(samOffset == 0)
+						samOffset = offset;
+					break;
+				case 2:
+					if(effOffset == 0)
+						effOffset = offset;
+					break;
+				case 5:
+					if(chanOffset == 0)
+						chanOffset = offset;
+					break;
+				default:
+					break;
+
+			}
+			if(acqOffset !=0 && samOffset!=0  && effOffset!=0 && chanOffset!=0)
+				break;
+		}
+	}
+	if(encOffset == 0)
+		encOffset = acqOffset ;
+
+	const char* acqPtr = beg +acqOffset;
+	short offset1,offset2,chn;
+
+	memcpy(&offset1,acqPtr+34,shortSize);
+	memcpy(&offset2,acqPtr+36,shortSize);
+	memcpy(&chn,acqPtr+48+128+10,shortSize);
+	channels = chn* 256;	
+
+	//Get energy calibration
+	float energy_par_t;
+	memcpy(&energy_par_t,beg+encOffset+80 +36 ,floatSize);
+	energyCalPar[0]=energy_par_t;
+	memcpy(&energy_par_t,beg+encOffset+80 +40,floatSize);
+	energyCalPar[1]=energy_par_t;
+	memcpy(&energy_par_t,beg+encOffset+80 +44,floatSize);
+	energyCalPar[2]=energy_par_t;
+
+	const char* datePtr = acqPtr+48+offset2+1;
+	ULong64_t da;
+	memcpy(&da,datePtr,8);
+//takes it to 17 Nov 1858, base of modified Julian Calendar ,change to 1970-jan-1
+	UInt_t t =(UInt_t) (da/10000000 - 3506716800u);
+	printf("datetime:%ld time_t:%d\n",da,t);
+	measureTime.Set(t);
+
+	memcpy(&da,datePtr+8,8);
+	realTime = (~da)*1.0e-7f;
+	memcpy(&da,datePtr+16,8);
+	liveTime = (~da)*1.0e-7f;
+
+	const char *chanPtr = beg+chanOffset;
+	UInt_t *spectraData = new UInt_t[channels]; 
+	memcpy(spectraData ,chanPtr+512,4*channels);
+	for(int i=0; i<channels; i++)
+	{
+		counts.push_back(spectraData[i]);
+	}
+	delete [] spectraData ;
+
+}
+
 int Spectra::ReadChn()
 {
 	int shortSize=2;
@@ -220,11 +314,11 @@ int Spectra::ReadChn()
 
 	//Get energy calibration
 	float energy_par_t;
-	memcpy(&energy_par_t,metaData+32+4*chn+4,sizeof(float));
+	memcpy(&energy_par_t,metaData+32+4*chn+4,floatSize);
 	energyCalPar[0]=energy_par_t;
-	memcpy(&energy_par_t,metaData+32+4*chn+8,sizeof(float));
+	memcpy(&energy_par_t,metaData+32+4*chn+8,floatSize);
 	energyCalPar[1]=energy_par_t;
-	memcpy(&energy_par_t,metaData+32+4*chn+12,sizeof(float));
+	memcpy(&energy_par_t,metaData+32+4*chn+12,floatSize);
 	energyCalPar[2]=energy_par_t;
 }
 
@@ -233,6 +327,7 @@ int Spectra::ReadSpc()
 	int shortSize=2;
 	int floatSize=4;
 	int doubleSize=8;
+	int sectionSize=128;
 
 	short	ACQIRP,CALRP1,SPCTRP,SPCRCN,SPCCHN;
 	double RLTMDT, LVTMDT;
@@ -252,7 +347,7 @@ int Spectra::ReadSpc()
 	channels= SPCCHN;
 	unsigned int *spectraData = new unsigned int[channels]; 
 	//	memcpy(spectraData,metaData+(SPCTRP-1)*128,SPCRCN*128);
-	memcpy(spectraData,metaData+(SPCTRP-1)*128,channels*4);
+	memcpy(spectraData,metaData+(SPCTRP-1)*sectionSize,channels*4);
 	//printf("channel 976:%d\n",spectraData[976]);
 	for(int i=0; i<channels; i++)
 	{
@@ -262,7 +357,7 @@ int Spectra::ReadSpc()
 	//Short File Name
 	char ACQStr[129];
 	memset(ACQStr,0,129);
-	memcpy(ACQStr,metaData+128*(ACQIRP-1),128);
+	memcpy(ACQStr,metaData + sectionSize*(ACQIRP-1),sectionSize);
 	//Measure DateTime
 	char monthStr[4],dayStr[3],yearStr[4];
 	memset(monthStr,0,4);
@@ -282,7 +377,7 @@ int Spectra::ReadSpc()
 
 	char CALRP1Str[129];
 	memset(CALRP1Str,0,129);
-	memcpy(CALRP1Str,metaData+128*(CALRP1-1),128);
+	memcpy(CALRP1Str,metaData + sectionSize*(CALRP1-1),sectionSize);
 
 	//Get energy calibration
 	float energy_par_t;
@@ -300,26 +395,28 @@ void readSpectra(TString fileName = "lead_shield_background_2.Chn")
 	//TString fileName("ba133_8.Chn");
 	//		TString fileName("lead_shield_background_2.Chn");
 	//TString fNames[]={"i1-bg-pump.Chn","i1_p7-s1-U-pump.Spc","i1-s2-dianchenji_U-pump_p1.Spc"};
-	TString fNames[]={"i1-bg-pump.Chn","i1-s2-dianchenji_U-pump_p1.Spc","i1-s1-U-pump_3.Spc"};
+	//	TString fNames[]={"i1-bg-pump.Chn","i1-s2-dianchenji_U-pump_p1.Spc","i1-s1-U-pump_3.Spc"};
+	TString fileName("Test_spc.cnf");
+	//TString fileName("Naidemo.cnf");
 	TH1F *th1;
 	Spectra *sp ;
 	sp= new Spectra();
 	sp->Read(fileName);
-	th1=sp->GetTH1();
+	sp->Print();
+	//	/*	
 	THStack *hs = new THStack("hs","Alpha Spectra");
-	/*	
-		for(int i=0;i<3;i++)
-		{
-		sp= new Spectra();
-		sp->Read(fNames[i]);
-		th1=sp->GetTH1();
+	th1=sp->GetTH1();
+	/*
+	   for(int i=0;i<3;i++)
+	   {
+	   sp= new Spectra();
+	   sp->Read(fNames[i]);
+	   th1=sp->GetTH1();
 
 	//	th1->SetFillColor(2+i);
 	th1->SetLineColor(2+i);
 	hs->Add(th1);
-	}
-	*/
-	sp->Print();
+	}*/
 	hs->Add(th1);
 	hs->Draw("nostack,elp");
 	//	hs->Draw();
@@ -329,4 +426,5 @@ void readSpectra(TString fileName = "lead_shield_background_2.Chn")
 	hs->GetYaxis()->CenterTitle(1);
 	gPad->SetGrid();
 	gPad->Update();
+	//	*/
 }
