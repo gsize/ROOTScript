@@ -92,6 +92,7 @@ void drawMaterial(TString mat)
 	gPad->SetLogx(1);
 	gPad->SetLogy(1);
 	mg->SetMinimum(1.0e-9);
+	mg->SetTitle(Form("%s Attenuation Coefficients",mat.Data()));
 	mg->GetXaxis()->SetTitle("Photon Energy/ MeV");
 	mg->GetXaxis()->CenterTitle();
 	mg->GetYaxis()->SetTitle("Photon Cross Section/ cm^{2}/g");
@@ -151,11 +152,11 @@ void drawTotalAttenuation()
 	c3->BuildLegend();
 }
 
-void plotGraph()
+void plotGraph(TString fname="U")
 {
 //		drawTotalAttenuation();
 
-		TString mat("Fe");
-		drawMaterial( mat);
+		//TString mat("U");
+		drawMaterial( fname);
 
 }
