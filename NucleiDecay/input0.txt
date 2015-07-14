@@ -1,5 +1,5 @@
 ## input file
-## mass    element     time(s)      Activity
-137       Cs  5.3E+7   50000.4
-152       Eu   5999999999.5    50000.5
-133       Ba   5999999.5      50000.5
+## element     time(s)      Activity
+Cs-137  5.3E+7   50000.4
+Eu-152m   5999999999.5    50000.5
+Ba-133   5999999.5      50000.5

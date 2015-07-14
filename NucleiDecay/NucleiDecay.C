@@ -1,6 +1,6 @@
 // 衰变核素相关class的使用
 
-void ReadInputFile(std::vector<int> &mass, std::vector<string> &element, std::vector<double> &time, std::vector<double> &Activity ,bool flag= 0)
+void ReadInputFile( std::vector<string> &element, std::vector<double> &time, std::vector<double> &Activity ,bool flag= 0)
 {
 	TString dir = gSystem->UnixPathName(gInterpreter->GetCurrentMacroName());
 	dir.ReplaceAll("NucleiDecay.C","");
@@ -20,37 +20,26 @@ void ReadInputFile(std::vector<int> &mass, std::vector<string> &element, std::ve
 	}
 
 	string str_tmp;
+	TPRegexp re("^#");
 	while(getline(in,str_tmp)) {
-		if(str_tmp[0] == '#')
+		TString str(str_tmp);
+		if(str.Contains(re))
 			continue;	
 		double timeSTR;
 		double activitySTR;
-		int massSTR;
-		char elementSTR[5];
+		char elementSTR[9];
 		if( flag== 0)
-			sscanf(str_tmp.c_str(),"%d%s%lg%lg",&massSTR,elementSTR,&timeSTR, &activitySTR);
+			sscanf(str_tmp.c_str(),"%s%lg%lg",elementSTR,&timeSTR, &activitySTR);
 		else
 		{
 			char day0[15],day1[15];
 			char time0[10],time1[10];
-			sscanf(str_tmp.c_str(),"%d%s%s%s%s%s%lg",&massSTR,elementSTR,day0,time0,day1,time1, &activitySTR);
-			
-			TString daytime(day0);
-			daytime += " ";
-			daytime += time0;
-			TDatime t0(daytime.Data());
-			daytime.Clear();
+			sscanf(str_tmp.c_str(),"%s%s%s%s%s%lg",elementSTR,day0,time0,day1,time1, &activitySTR);
 
-			daytime= day1 ;
-			daytime += " ";
-			daytime += time1;
-			TDatime t1(daytime.Data());
+			TDatime t0(Form("%s %s",day0,time0));
+			TDatime t1(Form("%s %s",day1,time1));
 			timeSTR = (double)(t1.Convert())-t0.Convert();
-			cout<< timeSTR<<endl;
-
 		}
-		//cout << massSTR<<elementSTR <<timeSTR << activitySTR <<endl;
-		mass.push_back(massSTR);
 		string tmpSTR(elementSTR);
 		element.push_back(tmpSTR);
 		time.push_back(timeSTR);
@@ -59,15 +48,16 @@ void ReadInputFile(std::vector<int> &mass, std::vector<string> &element, std::ve
 	in.close();
 }
 
-void CalculateActivity( const TString &element_name, Int_t element_mass,double time, Double_t Activity0 = 1.0)
+void CalculateActivity( const TString &element_name,double time, Double_t Activity0 = 1.0)
 {
+	int ENDFCode;
+	ENDFCode = elemNR2ENDFCode(element_name);
 	TGeoElementTable *table = gGeoManager->GetElementTable();
+	TGeoElementRN *elemNR = table->GetElementRN(ENDFCode );
 
 	// Radioactive material
 	TObjArray *vect = new TObjArray();
 	TGeoBatemanSol *sol;
-	TGeoElement *elem = table->FindElement(element_name.Data());
-	TGeoElementRN *elemNR = table->GetElementRN(element_mass,elem->Z());
 
 	elemNR->FillPopulation(vect, 0.000001);
 	sol = elemNR->Ratio();
@@ -75,10 +65,41 @@ void CalculateActivity( const TString &element_name, Int_t element_mass,double t
 	sol->Normalize(Activity0);
 	//sol->SetRange(0,time);
 	double active=sol->Concentration(time);
-	cout<<elemNR->GetName()<<": "<<Activity0<< "  evolution after " <<time<<" s,the active: "<<active<<endl;
+	cout<<elemNR->GetName()<<": "<<Activity0<< "  evolution after " <<time<<" s,the active: "<<active<<"specificActivity:"<<elemNR->GetSpecificActivity()<<endl;
 	elemNR->ResetRatio();
 
 	delete vect;
+}
+
+int elemNR2ENDFCode(TString elementName)
+{
+	int ENDFCode;
+
+	TPRegexp re("^[A-Z][a-z]?-\\d+m?");
+	TPRegexp re1("^[A-Z][a-z]?-\\d+");
+	TPRegexp re2("^[A-Z][a-z]?-\\d+m$");
+
+	TGeoElementTable *table = gGeoManager->GetElementTable();
+	if(elementName.Contains(re))
+	{
+		int a=0,z=0,iso=0;
+		char str[4];
+
+		sscanf(elementName.Data(),"%[A-Za-z]-%d",str,&a);
+		TGeoElement *elem = table->FindElement(str);
+		z = elem->Z();
+
+		if(elementName.Contains(re2))
+			iso=1;
+		else
+			iso=0;
+
+		ENDFCode = 10000*z+10*a+iso;
+	}
+	else
+		ENDFCode=0;
+
+	return ENDFCode;
 }
 
 double eff_fun(double *x,double *par)
@@ -150,16 +171,15 @@ void NucleiDecay(bool flag = 0)
 {
 	TGeoManager *geom = new TGeoManager("","");
 
-	std::vector<int> MassList;
 	std::vector<string> ElementList;
 	std::vector<double> TimeList;
 	std::vector<double> ActivityList; 
 
-	ReadInputFile(MassList, ElementList, TimeList, ActivityList,flag);
+	ReadInputFile(ElementList, TimeList, ActivityList,flag);
 
-	for(int i=0; i<MassList.size();i++)
+	for(int i=0; i<ElementList.size();i++)
 	{
 		TString element_name(ElementList[i]);
-		CalculateActivity( element_name, MassList[i],TimeList[i], ActivityList[i]);
+		CalculateActivity( element_name,TimeList[i], ActivityList[i]);
 	}
 }
