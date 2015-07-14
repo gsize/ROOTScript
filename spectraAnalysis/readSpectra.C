@@ -9,6 +9,7 @@ class Spectra {
 		TH1F *GetTH1();
 		void Print();
 		void Reset();
+		void FitAlpha();
 
 	private:
 		int ReadChn();  //ORTEC spectra .chn
@@ -107,7 +108,7 @@ int Spectra::Read(const TString filename)
 	TString dir = gSystem->UnixPathName(gInterpreter->GetCurrentMacroName());
 	dir.ReplaceAll("readSpectra.C","");
 	dir.ReplaceAll("/./","/");
-	pathDir = dir;
+	pathDir = dir+"../../spectrum/alpha/gaosize/";
 
 	fileName = filename;
 
@@ -156,7 +157,7 @@ int Spectra::Read(const TString filename)
 
 	delete [] metaData ;
 }
-TString Spectra::FormatDateTime(char *yearStr,char *monthStr,char *dayStr,char *timeStr)
+TString Spectra::FormatDateTime(char *yearStr,char *monthStr,char *dayStr, char *timeStr)
 {
 	char month[12][4] = {"Jan","Feb","Mar","Apr",
 		"May","Jun","Jul","Aug",
@@ -168,12 +169,14 @@ TString Spectra::FormatDateTime(char *yearStr,char *monthStr,char *dayStr,char *
 	TString dataTimeStr;
 	if(yearStr[3]=='1')
 	{
-		yearStr[3]=='\0';
+		yearStr[3]='\0';
 		dataTimeStr.Form("20%s-%d-%s %s",yearStr,nMonth,dayStr,timeStr);
 	}
 	else
+	{
+	yearStr[3]='\0';
 		dataTimeStr.Form("19%s-%d-%s %s",yearStr,nMonth,dayStr,timeStr);
-
+}
 	return dataTimeStr;
 }
 
@@ -185,7 +188,7 @@ int Spectra::ReadCnf()
 	int intSize=4;
 	int doubleSize=8;
 
-	int acqOffset=0, samOffset=0,effOffset=0,encOffset=0,chanOffset=0;
+	unsigned int acqOffset=0, samOffset=0,effOffset=0,encOffset=0,chanOffset=0;
 	const char *beg = metaData;
 	const char *end =beg + fileSize;
 	for(const char* ptr= beg+ 112; ptr +48 <end;ptr+= 48)
@@ -246,7 +249,7 @@ int Spectra::ReadCnf()
 	memcpy(&da,datePtr,8);
 //takes it to 17 Nov 1858, base of modified Julian Calendar ,change to 1970-jan-1
 	UInt_t t =(UInt_t) (da/10000000 - 3506716800u);
-	printf("datetime:%ld time_t:%d\n",da,t);
+	printf("datetime:%d time_t:%d\n",da,t);
 	measureTime.Set(t);
 
 	memcpy(&da,datePtr+8,8);
@@ -389,25 +392,52 @@ int Spectra::ReadSpc()
 	energyCalPar[2]=energy_par_t;
 	//	printf("%s  %s  %s\n",CALDESStr,CALRP1Str,CALRP2Str);
 }
+
+void Spectra::FitAlpha()
+{
+TH1F *th;
+th = GetTH1();
+TSpectrum *sp = new TSpectrum();
+	Int_t nfound = sp->Search( th ,2,"nodraw");
+	int p1 = (sp->GetPositionX())[0];
+	double xMin , xMax;
+	xMin=p1-100 ;xMax=p1+100;
+	for(int i=0;i<nfound;i++)
+	{
+	int p = (sp->GetPositionX())[i];
+	int a = th->GetBinContent(p1) ;
+	 printf("No. %d  peaks:%d\n",p,a );
+	}
+TF1 *lg1 = new TF1("lg","[0]*TMath::Gaus(x,[1],[2])+[3]*TMath::Landau(-x+[4],[5],[6])", xMin, xMax);
+lg1->SetParameters( th->GetBinContent(p1),  p1, 4.6, th->GetBinContent(p1),  2.* p1,  p1, 5);
+th->Fit("lg","R+");
+
+  delete sp;
+  
+  TCanvas *c2 = new TCanvas("c2","c2",10,10,1000,600);
+gStyle->SetOptFit(1111);
+	gPad->SetLogy(1);
+	gPad->SetGridy(1);
+	gPad->SetGridx(1);
+	th->Draw();
+}
+
 void readSpectra(TString fileName = "lead_shield_background_2.Chn")
 {
 	//TString fileName("ba133_08_20131016_1.Spc");
 	//TString fileName("ba133_8.Chn");
 	//		TString fileName("lead_shield_background_2.Chn");
 	//TString fNames[]={"i1-bg-pump.Chn","i1_p7-s1-U-pump.Spc","i1-s2-dianchenji_U-pump_p1.Spc"};
-	//	TString fNames[]={"i1-bg-pump.Chn","i1-s2-dianchenji_U-pump_p1.Spc","i1-s1-U-pump_3.Spc"};
-	TString fileName("Test_spc.cnf");
+		TString fNames[]={"i1-p3_ds6-dianchenji_U-pump_1.Spc","i1-p3_ds7-dianchenji_U-pump_1.Spc","i1-p3_ds8-dianchenji_U-pump_1.Spc","i1-p3_ds9-dianchenji_U-pump_1.Spc"};
+	//TString fileName("Test_spc.cnf");
 	//TString fileName("Naidemo.cnf");
+	//TString fileName("i1-s2-dianchenji_U-pump_p3.Spc");
 	TH1F *th1;
 	Spectra *sp ;
-	sp= new Spectra();
-	sp->Read(fileName);
-	sp->Print();
 	//	/*	
 	THStack *hs = new THStack("hs","Alpha Spectra");
-	th1=sp->GetTH1();
-	/*
-	   for(int i=0;i<3;i++)
+//	/*
+	   for(int i=0;i<4;i++)
 	   {
 	   sp= new Spectra();
 	   sp->Read(fNames[i]);
@@ -416,8 +446,16 @@ void readSpectra(TString fileName = "lead_shield_background_2.Chn")
 	//	th1->SetFillColor(2+i);
 	th1->SetLineColor(2+i);
 	hs->Add(th1);
-	}*/
+	}
+	//*/
+	/*
+	sp= new Spectra();
+	sp->Read(fileName);
+	sp->Print();
+
+	th1=sp->GetTH1();
 	hs->Add(th1);
+	*/
 	hs->Draw("nostack,elp");
 	//	hs->Draw();
 	hs->GetXaxis()->SetTitle("Channel");
@@ -426,5 +464,7 @@ void readSpectra(TString fileName = "lead_shield_background_2.Chn")
 	hs->GetYaxis()->CenterTitle(1);
 	gPad->SetGrid();
 	gPad->Update();
+	
+//	sp->FitAlpha();
 	//	*/
 }
