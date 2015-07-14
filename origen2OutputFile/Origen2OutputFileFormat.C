@@ -5,12 +5,9 @@ void Origen2OutputFileFormat(TString fname="TAPE20d.OUT")
 	TString dir = gSystem->UnixPathName(gInterpreter->GetCurrentMacroName());
 	dir.ReplaceAll("Origen2OutputFileFormat.C","");
 	dir.ReplaceAll("/./","/");
-	TString pathName;
-	pathName = dir + "data/";
-	pathName+=fname;
 
 	ifstream in;
-	in.open(pathName.Data());
+	in.open(Form("%sdata/%s",dir.Data(),fname.Data()));
 	if(!(in.is_open()))
 	{
 		cout<< "open in file failed!"<<endl;
