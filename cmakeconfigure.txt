@@ -1,0 +1,1 @@
+-DCMAKE_INSTALL_PREFIX=/opt/root  -Dbuiltin_cfitsio=ON -Dbuiltin_freetype=ON -Dbuiltin_glew=ON -Dbuiltin_gsl=ON -Dbuiltin_lzma=ON -Dbuiltin_pcre=ON -Dbuiltin_zlib=ON -Dcxx11=ON -Dgdml=ON -Dminuit2=ON -Droofit=ON -Dpython=OFF
