@@ -1,3 +1,6 @@
+#include "TAxis.h"
+#include "TH1.h"
+#include "TArrayD.h"
 //#include <map>
 class Spectra {
 	public:
@@ -5,10 +8,11 @@ class Spectra {
 		~Spectra();
 
 		int Read(const TString filename);
-		int Plot();
+		void Plot();
 		TH1F *GetTH1();
 		void Print();
 		void Reset();
+		void SetPathDir(const TString path){pathDir = path;};
 		void FitAlpha();
 
 	private:
@@ -16,7 +20,7 @@ class Spectra {
 		int ReadSpc();//ORTEC spectra  .spc
 		int ReadCnf(); //Canberra spectra .cnf
 		int ReadIEC();
-		TString FormatDateTime(char *yearStr,char *monthStr,char *dayStr,char *timeStr);
+		TString FormatDateTime(char *yearStr,char *monthStr,char *dayStr,const char *timeStr);
 
 	private:
 		std::vector<int> counts;
@@ -66,13 +70,13 @@ void Spectra::Print()
 	measureTime.Print();
 	printf("Real Time:%.3lf\t",realTime);
 	printf("Live Time:%.3lf\t",liveTime);
-	printf("Dead Time:%5.2lf\%\n",100. * (realTime-liveTime)/realTime);
+	printf("Dead Time:%5.2lf%%\n",100. * (realTime-liveTime)/realTime);
 	printf("Channel Number:%d\n",channels);
 	printf("Energy Calibration: E = %.3lf + %.3lf*chn +%.3lf*chn^2\n",energyCalPar[0],energyCalPar[1],energyCalPar[2]);
 
 }
 
-int Spectra::Plot()
+void Spectra::Plot()
 {
 	TCanvas *c1 = new TCanvas("c1","c1",10,10,1000,600);
 	TH1F *th1;
@@ -108,7 +112,6 @@ int Spectra::Read(const TString filename)
 	TString dir = gSystem->UnixPathName(gInterpreter->GetCurrentMacroName());
 	dir.ReplaceAll("readSpectra.C","");
 	dir.ReplaceAll("/./","/");
-	pathDir = dir+"../../spectrum/alpha/gaosize/";
 
 	fileName = filename;
 
@@ -156,8 +159,11 @@ int Spectra::Read(const TString filename)
 	}
 
 	delete [] metaData ;
+	
+	return 1;
 }
-TString Spectra::FormatDateTime(char *yearStr,char *monthStr,char *dayStr, char *timeStr)
+
+TString Spectra::FormatDateTime(char *yearStr,char *monthStr,char *dayStr,const char *timeStr)
 {
 	char month[12][4] = {"Jan","Feb","Mar","Apr",
 		"May","Jun","Jul","Aug",
@@ -202,7 +208,7 @@ int Spectra::ReadCnf()
 					if(acqOffset == 0)
 						acqOffset = offset;
 					else
-						encOffset = offSet;
+						encOffset = offset;
 					break;
 				case 1:
 					if(samOffset == 0)
@@ -249,7 +255,7 @@ int Spectra::ReadCnf()
 	memcpy(&da,datePtr,8);
 //takes it to 17 Nov 1858, base of modified Julian Calendar ,change to 1970-jan-1
 	UInt_t t =(UInt_t) (da/10000000 - 3506716800u);
-	printf("datetime:%d time_t:%d\n",da,t);
+	//printf("datetime:%ld time_t:%d\n",da,t);
 	measureTime.Set(t);
 
 	memcpy(&da,datePtr+8,8);
@@ -265,7 +271,8 @@ int Spectra::ReadCnf()
 		counts.push_back(spectraData[i]);
 	}
 	delete [] spectraData ;
-
+	
+return 1;
 }
 
 int Spectra::ReadChn()
@@ -323,6 +330,8 @@ int Spectra::ReadChn()
 	energyCalPar[1]=energy_par_t;
 	memcpy(&energy_par_t,metaData+32+4*chn+12,floatSize);
 	energyCalPar[2]=energy_par_t;
+	
+	return 1;
 }
 
 int Spectra::ReadSpc()
@@ -391,6 +400,13 @@ int Spectra::ReadSpc()
 	memcpy(&energy_par_t,CALRP1Str+28,floatSize);
 	energyCalPar[2]=energy_par_t;
 	//	printf("%s  %s  %s\n",CALDESStr,CALRP1Str,CALRP2Str);
+	
+	return 1;
+}
+
+int Spectra::ReadIEC()
+{
+return 1;
 }
 
 void Spectra::FitAlpha()
@@ -422,49 +438,141 @@ gStyle->SetOptFit(1111);
 	th->Draw();
 }
 
+void DrawTag(TH1 *h, double xTag, TString strTag)
+{
+double xMin= h->GetXaxis()->GetXmin();
+double xMax= h->GetXaxis()->GetXmax();
+
+        if(xTag > xMin && xTag < xMax)
+{
+		TLatex *tex = new TLatex(xTag,h->GetBinContent(h->FindBin(xTag)),strTag.Data());
+		tex->SetTextSize(0.02688601);
+		tex->SetLineWidth(2);
+		//tex->SetTextAlign(12);
+		tex->SetTextAngle(90.);
+		tex->Draw();
+}
+}
+
+short fast_log(unsigned int count)
+{
+	short l,i;
+	char log2[25]=
+	{
+		-3, 0, 12,20,24,28,32,34,36,38,40,42,44,45,46,47,48,49,50,51,52,53,54,55,56,
+	};
+
+	l=0;
+	while(count > 24)
+	{
+		count/=2;
+		l++;
+	}
+
+	i=l*log2[2]+log2[count];
+	i+=3;
+	return(i);
+}
+
+Double_t ScaleX(Double_t x)
+{
+	Double_t v;//0.171,0.136,-2.758e-9
+	v = 0.157 +  0.136 * x  -3.172E-09*x*x; // "linear scaling" function example
+	return v;
+}
+
+void ScaleAxis(TAxis *a, Double_t (*Scale)(Double_t))
+{
+	if (!a) return; // just a precaution
+	if (a->GetXbins()->GetSize())
+	{
+		// an axis with variable bins
+		// note: bins must remain in increasing order, hence the "Scale"
+		// function must be strictly (monotonically) increasing
+		TArrayD X(*(a->GetXbins()));
+		for(Int_t i = 0; i < X.GetSize(); i++) X[i] = Scale(X[i]);
+		a->Set((X.GetSize() - 1), X.GetArray()); // new Xbins
+	}
+	else
+	{
+		// an axis with fix bins
+		// note: we modify Xmin and Xmax only, hence the "Scale" function
+		// must be linear (and Xmax must remain greater than Xmin)
+		a->Set(a->GetNbins(),
+				Scale(a->GetXmin()), // new Xmin
+				Scale(a->GetXmax())); // new Xmax
+	}
+	return;
+}
+
+void ScaleXaxis(TH1 *h, Double_t (*Scale)(Double_t))
+{
+	if (!h) return; // just a precaution
+	ScaleAxis(h->GetXaxis(), Scale);
+	return;
+}
+/*
+   ScaleXaxis(hist1, ScaleX);
+   hist1->Draw();
+   hist1->ResetStats();
+*/
+
 void readSpectra(TString fileName = "lead_shield_background_2.Chn")
 {
 	//TString fileName("ba133_08_20131016_1.Spc");
 	//TString fileName("ba133_8.Chn");
 	//		TString fileName("lead_shield_background_2.Chn");
 	//TString fNames[]={"i1-bg-pump.Chn","i1_p7-s1-U-pump.Spc","i1-s2-dianchenji_U-pump_p1.Spc"};
-		TString fNames[]={"i1-p3_ds6-dianchenji_U-pump_1.Spc","i1-p3_ds7-dianchenji_U-pump_1.Spc","i1-p3_ds8-dianchenji_U-pump_1.Spc","i1-p3_ds9-dianchenji_U-pump_1.Spc"};
+		TString fNames[]={"i1-p3_s5-dianchenji_U-pump_1.Spc","i1-p3_ds6-dianchenji_U-pump_1.Spc","i1-p3_ds7-dianchenji_U-pump_1.Spc","i1-p3_ds8-dianchenji_U-pump_1.Spc","i1-p3_ds9-dianchenji_U-pump_1.Spc"};
 	//TString fileName("Test_spc.cnf");
 	//TString fileName("Naidemo.cnf");
 	//TString fileName("i1-s2-dianchenji_U-pump_p3.Spc");
+	int numSpc = 5;
 	TH1F *th1;
 	Spectra *sp ;
-	//	/*	
+	TString pDir("/home/gsz/Nutstore/spectrum/alpha/gaosize/");
 	THStack *hs = new THStack("hs","Alpha Spectra");
-//	/*
-	   for(int i=0;i<4;i++)
+	   for(int i=0;i<numSpc;i++)
 	   {
 	   sp= new Spectra();
+	   sp->SetPathDir(pDir);
 	   sp->Read(fNames[i]);
 	   th1=sp->GetTH1();
 
 	//	th1->SetFillColor(2+i);
-	th1->SetLineColor(2+i);
+//	th1->SetLineColor(2+i);
 	hs->Add(th1);
 	}
-	//*/
-	/*
-	sp= new Spectra();
-	sp->Read(fileName);
-	sp->Print();
 
-	th1=sp->GetTH1();
-	hs->Add(th1);
-	*/
 	hs->Draw("nostack,elp");
 	//	hs->Draw();
 	hs->GetXaxis()->SetTitle("Channel");
 	hs->GetXaxis()->CenterTitle(1);
 	hs->GetYaxis()->SetTitle("counts");
 	hs->GetYaxis()->CenterTitle(1);
-	gPad->SetGrid();
-	gPad->Update();
+	gPad->SetGridx(1);
+	gPad->SetGridy(1);
+	//gPad->Update();
 	
-//	sp->FitAlpha();
-	//	*/
+	TCanvas *cSp = new TCanvas("cSp","cSp",10,10,1000,600);
+	cSp->Divide(2,3);
+	TString tl[]={"s5","s6","s7","s8"};
+	TLatex *l1,*l2,*l3;
+	for(int i=0;i<hs->GetNhists();i++)
+	{
+		l1=new TLatex(1210,400,"#splitline{U-238}{4.19MeV}");
+		l2=new TLatex(1560,400,"#splitline{U-234}{4.78MeV}");
+		l3=new TLatex(1350,10,"#splitline{U-235}{4.4MeV}");
+	th1 = (TH1F*)(hs->GetHists()->At(i));
+	cSp->cd(i+1);
+	gPad->SetGridx(1);
+	gPad->SetGridy(1);
+	th1->GetXaxis()->SetRange(880,1650);
+	th1->SetTitle(tl[i].Data());
+	gPad->SetLogy(1);
+	th1->Draw();
+	l1->Draw();
+	l2->Draw();
+	l3->Draw();
+	}
 }
