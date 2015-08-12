@@ -2,6 +2,7 @@
 
 *.png
 *.root
+*.sqlite
 
 figure/
 zhaohaogui/
@@ -24,5 +25,6 @@ HPGe_parameter/outfile*
 *.[Ss]pe
 *.[Cc]hn
 *.[Ss]pc
+*.[Cc]nf
 
 calculateMDA/*.[Tt]xt
