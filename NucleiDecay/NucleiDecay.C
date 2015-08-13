@@ -1,5 +1,7 @@
 // 衰变核素相关class的使用
 
+int elemNR2ENDFCode(TString elementName);
+
 void ReadInputFile( std::vector<string> &element, std::vector<double> &time, std::vector<double> &Activity ,bool flag= 0)
 {
 	TString dir = gSystem->UnixPathName(gInterpreter->GetCurrentMacroName());
@@ -48,7 +50,7 @@ void ReadInputFile( std::vector<string> &element, std::vector<double> &time, std
 	in.close();
 }
 
-void CalculateActivity( const TString &element_name,double time, Double_t Activity0 = 1.0)
+double CalculateActivity( const TString &element_name,double time, Double_t Activity0 = 1.0)
 {
 	int ENDFCode;
 	ENDFCode = elemNR2ENDFCode(element_name);
@@ -61,14 +63,14 @@ void CalculateActivity( const TString &element_name,double time, Double_t Activi
 
 	elemNR->FillPopulation(vect, 0.000001);
 	sol = elemNR->Ratio();
-
 	sol->Normalize(Activity0);
 	//sol->SetRange(0,time);
 	double active=sol->Concentration(time);
-	cout<<elemNR->GetName()<<": "<<Activity0<< "  evolution after " <<time<<" s,the active: "<<active<<"specificActivity:"<<elemNR->GetSpecificActivity()<<endl;
-	elemNR->ResetRatio();
 
+	elemNR->ResetRatio();
 	delete vect;
+	
+	return active;
 }
 
 int elemNR2ENDFCode(TString elementName)
@@ -100,6 +102,35 @@ int elemNR2ENDFCode(TString elementName)
 		ENDFCode=0;
 
 	return ENDFCode;
+}
+
+void GetGammaRay(const TString el, std::vector<double> &energy, std::vector<double> &intensity )
+{
+	TString dir = gSystem->UnixPathName(gInterpreter->GetCurrentMacroName());
+	dir.ReplaceAll("NucleiDecay.C","");
+	dir.ReplaceAll("/./","/");
+
+	TString dbname(Form("sqlite://%s/../gammaSpectraMaker/nucleidata.sqlite",dir.Data()));
+	TSQLiteServer * f = new TSQLiteServer(dbname.Data());
+
+	TSQLiteRow *row;
+	TSQLiteResult *res;
+	int nfield;
+	int endfcode = elemNR2ENDFCode(el);
+	TString sql(Form("select * from rayInfor where ENDFCode=%d and rayType = \"G\" ",endfcode));
+	res = (TSQLiteResult*) f->Query(sql.Data());
+	nfield = res->GetFieldCount();
+
+	while((row = (TSQLiteRow *)( res->Next())))
+	{
+		energy.push_back(row->GetField(3));
+		intensity.push_back(row->GetField(2));
+	//	printf("%12s%12s%12s\n",row->GetField(0),row->GetField(3),row->GetField(2));
+		delete row;
+	}
+	delete res;
+
+	f->Close();
 }
 
 double eff_fun(double *x,double *par)
@@ -146,14 +177,8 @@ void DrawPopulation(TObjArray *vect, TCanvas *can, Double_t tmin=0.,
 				sol->Draw();
 				/*  TF1 *func = (TF1*)can->FindObject(
 					Form("conc%s",sol->GetElement()->GetName()));
-					if (func) {
-					if (!strcmp(can->GetName(),"c1")) func->SetTitle(
-					"Concentration of C14 derived elements;time[s];Ni/N0(C14)");
-					else func->SetTitle(
-					"Concentration of elements derived from mixture Ca53+Sr78;\
-					time[s];Ni/N0(Ca53)");
-					} */  
-			}   
+				 */  
+			}
 			else      sol->Draw("SAME");
 			TString nameRN;
 			double t;
@@ -182,4 +207,9 @@ void NucleiDecay(bool flag = 0)
 		TString element_name(ElementList[i]);
 		CalculateActivity( element_name,TimeList[i], ActivityList[i]);
 	}
+	
+	TString em("Co-60");
+	GetGammaRay(em);
+	
+	delete geom;
 }
