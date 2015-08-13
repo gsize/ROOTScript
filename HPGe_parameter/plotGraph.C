@@ -152,25 +152,27 @@ void ReadFile(TString filename,std::vector<double> &xList,std::vector<double> &y
 		return;
 	}
 
-	int i=0; 
 	bool read_flag=0;
 	string str_tmp;
+	TPRegexp re("^ +(\\d+\\.\\d+)((( +\\d\\.\\d+[Ee][\\+\\-]\\d+){2,2})|(( +\\d+\\.\\d+){2,2})) +(-?)(\\d\\.\\d+)");
 
 	if(filename.Contains("003.eft"))
 		read_flag=1;
 	while(getline(in,str_tmp)) {
-		i++;
 		double x,y,yFit,yError,yDelta; 
+
+		TString str(str_tmp);
 		if(read_flag)
 		{
-			sscanf(str_tmp.c_str(),"%lf%lf",&x, &y);
+			sscanf(str.Data(),"%lf%lf",&x, &y);
 			xList.push_back(x*0.001);
 			yList.push_back(y);
-				yErrorsList.push_back(0.);
+			yErrorsList.push_back(0.);
 		}
 		else{
-			if(i>5){
-				sscanf(str_tmp.c_str(),"%lf%lf%lf%lf",&x, &y, &yFit, &yError);
+			if(str.Contains( re))
+			{
+				sscanf(str.Data(),"%lf%lf%lf%lf",&x, &y, &yFit, &yError);
 				xList.push_back(x*0.001);
 				yList.push_back(y);
 				yDelta =TMath::Abs( y * yError *0.01);
@@ -250,15 +252,15 @@ void plotGraph()
 	std::vector<double> xList;
 	std::vector<double> yList;
 	std::vector<double> yErrorsList;
-
+	TString lineName("Channal");
 	pathName = dir + "energy_80mm.Txt";
 	ReadFile(pathName,xList,yList,yErrorsList);
-	TString lineName("Channal");
 	plotLine(lineName,(Int_t)xList.size(),&xList[0],&yList[0],&yErrorsList[0]);
 
 	yErrorsList.clear();
 	xList.clear();
 	yList.clear();
+
 	pathName = dir + "eff_80mm.Txt";
 	//pathName = dir + "eff_ba133_16_20130422.Txt";
 	ReadFile(pathName,xList,yList,yErrorsList);
@@ -268,10 +270,12 @@ void plotGraph()
 	yErrorsList.clear();
 	xList.clear();
 	yList.clear();
+
 	pathName = dir + "FWHM_80mm.Txt";
 	ReadFile(pathName,xList,yList,yErrorsList);
 	lineName = "FWHM" ;
 	plotLine(lineName,(Int_t)xList.size(),&xList[0],&yList[0],&yErrorsList[0]);
+
 
 	yErrorsList.clear();
 	xList.clear();
