@@ -1,41 +1,66 @@
 
-#include "ifstream.h"
 
 #include "TCanvas.h"
 #include "TF1.h"
 #include "TString.h"
 #include "TMath.h"
 
-void ReadAndCalculate(std::vector<double> &MDA_list, TF1 *fun_eff)
-{	
+vector<double> energy;
+vector<double> intensity;
+vector<double> MDA_list;
+
+int  GetGammaRay(int endfcode )
+{
 	TString dir = gSystem->UnixPathName(gInterpreter->GetCurrentMacroName());
 	dir.ReplaceAll("calMDA.C","");
 	dir.ReplaceAll("/./","/");
-	TString pathFile;
-	pathFile = dir + "energy_rate.txt";
-	ifstream in;
-	in.open(pathFile);
-	if(!(in.is_open()))
+
+	TString dbname(Form("sqlite://%s/../../NuclearDatabase/nucleidata.sqlite",dir.Data()));
+	TSQLiteServer * f = new TSQLiteServer(dbname.Data());
+
+	TSQLiteRow *row;
+	TSQLiteResult *res;
+	int nfield;
+	//int endfcode = elemNR2ENDFCode(el);
+	TString sql(Form("select * from rayInfor where ENDFCode=%d and rayType = \"G\" ",endfcode));
+	res = (TSQLiteResult*) f->Query(sql.Data());
+	if(res==0)
 	{
-		printf("open file failed!");
-		return;
+		f->Close();
+		return 0;
 	}
+	else
+	{
+		nfield = res->GetFieldCount();
+		while((row = (TSQLiteRow *)( res->Next())))
+		{
+			TString str(row->GetField(3));
+			energy.push_back(str.Atof());
+			str= row->GetField(2);
+			intensity.push_back(str.Atof());
+	//		ensdf.push_back(endfcode);
+			delete row;
+		}
+		delete res;
 
-	double liveTime=0.;
-	double bg_rate = 0.; 
+		f->Close();
+		return 1;
+	}
+}
+
+void Calculate(int endfcode,double liveTime,double bg_rate, TF1 *fun_eff)
+{
+	double mda;
 	double background =0.;
-	string str_tmp;
 
-	//	background = bg_rate * liveTime;
-	while(getline(in,str_tmp)) {
-		double energy,branch,livetime,backgroud, mda;
-		if(str_tmp[0] == '#') continue;
-		sscanf(str_tmp.c_str(),"%lf%lf%lf%lf",&energy, &branch,&liveTime,&background);
-		mda = MDA(background,fun_eff->Eval(energy/1000.),branch/100.0,liveTime);
+	background = bg_rate * liveTime;
+	GetGammaRay( endfcode );
+	for(int i=0;i<energy.size();i++)
+	{
+		mda = MDA(background,fun_eff->Eval(energy[i]),intensity[i],liveTime);
 		MDA_list.push_back(mda);
-		//printf("%8.3lf kev,MDA(Bq):%8.3lf\n",energy,mda);
+		printf("%lf\t %lf\n",energy[i],intensity[i]);
 	}
-	in.close();
 }
 
 double eff_fun(double *x, double *par)
@@ -80,12 +105,13 @@ void calMDA()
 	TF1 *fun_eff=  new TF1("Efficiency",eff_fun,0.10,1.5,6);
 	//fun_eff->SetParameters(0.109574,-7.255860, 1.839348,  -0.462271, 0.060579, -0.003032);
 	fun_eff->SetParameters(-0.349521, -6.056041, 0.605647, -0.068800, 0.003151, -0.000059);
-if(effFlg==1)
-	plotEff(fun_eff);
+	if(effFlg==1)
+		plotEff(fun_eff);
+int endfcode = 531330;
+double liveTime=200;
+double bg_rate=12; 
 
-	vector<double> MDA_list;
-
-	ReadAndCalculate(MDA_list,fun_eff);
+	Calculate( endfcode,liveTime,bg_rate, fun_eff);
 	TString outFile;
 	outFile = dir + "outdata_MDA1.txt";
 	ofstream out;
