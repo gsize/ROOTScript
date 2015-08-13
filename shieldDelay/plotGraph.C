@@ -36,6 +36,7 @@ TNtupleD* readData(TString filename)
 	}
 
 	TPMERegexp re(".{7,7}( [0-9]+(\\.[0-9]+)(E|e)(\\+|\\-)[0-9]{2,2}){8,8}");
+	//TPRegexp re(".{7,7}( [0-9]+(\\.[0-9]+)(E|e)(\\+|\\-)[0-9]{2,2}){8,8}");
 //	TPMERegexp re("([0-9]+(\\.[0-9]+)(E|e)(\\+|\\-)[0-9]{2,2} ){7,7}([0-9]+(\\.[0-9]+)(E|e)(\\+|\\-)[0-9]{2,2})");
 	//re.Print();
 	string str_tmp;
@@ -43,7 +44,7 @@ TNtupleD* readData(TString filename)
 	double d1,d2,d3,d4,d5,d6,d7,d8;
 	while(getline(in,str_tmp)) {
 		TString str(str_tmp);
-		if(str.Contains((TPRegexp) re))
+		if(re.Match(str))
 		{
 			str.Replace(0,7," ");
 			sscanf(str.Data(),"%lf%lf%lf%lf%lf%lf%lf%lf",&d1,&d2,&d3,&d4,&d5,&d6,&d7,&d8);
@@ -78,7 +79,7 @@ void drawMaterial(TString mat)
 		gr = new TGraph(ntuple->GetSelectedRows(),ntuple->GetV2(),ntuple->GetV1());
 		gr->SetTitle(listTag[i]);
 		gr->SetLineColor(1+i);
-		gr->SetLineWidth(2.5);
+		gr->SetLineWidth(2);
 		gr->GetXaxis()->SetTitle("Photon Energy/MeV");
 		gr->GetXaxis()->CenterTitle();
 		gr->GetYaxis()->SetTitle("Photon Cross Section/cm2/g");
@@ -127,7 +128,7 @@ void drawTotalAttenuation()
 		gr = new TGraph(ntuple->GetSelectedRows(),ntuple->GetV2(),ntuple->GetV1());
 		gr->SetTitle(mats[i]);
 		gr->SetLineColor(1+i);
-		gr->SetLineWidth(2.5);
+		gr->SetLineWidth(2);
 		gr->GetXaxis()->SetTitle("Photon Energy/MeV");
 		gr->GetXaxis()->CenterTitle();
 		gr->GetYaxis()->SetTitle("Photon Cross Section/cm2/g");
