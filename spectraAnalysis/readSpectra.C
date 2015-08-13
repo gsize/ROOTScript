@@ -527,7 +527,7 @@ void readSpectra(TString fileName = "lead_shield_background_2.Chn")
 	//TString fileName("Test_spc.cnf");
 	//TString fileName("Naidemo.cnf");
 	//TString fileName("i1-s2-dianchenji_U-pump_p3.Spc");
-	int numSpc = 5;
+	int numSpc = 4;
 	TH1F *th1;
 	Spectra *sp ;
 	TString pDir("/home/gsz/Nutstore/spectrum/alpha/gaosize/");
@@ -555,7 +555,7 @@ void readSpectra(TString fileName = "lead_shield_background_2.Chn")
 	//gPad->Update();
 	
 	TCanvas *cSp = new TCanvas("cSp","cSp",10,10,1000,600);
-	cSp->Divide(2,3);
+	cSp->Divide(2,2);
 	TString tl[]={"s5","s6","s7","s8"};
 	TLatex *l1,*l2,*l3;
 	for(int i=0;i<hs->GetNhists();i++)
