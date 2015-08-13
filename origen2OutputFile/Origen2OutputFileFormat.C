@@ -15,6 +15,7 @@ void Origen2OutputFileFormat(TString fname="TAPE20d.OUT")
 	}
 
 	string str_tmp;
+    vector<string> vec_str0;
 	vector<string> vec_str;
 	TPMERegexp re_start("^\\+ +FISSION PRODUCTS +");
 	TPMERegexp re_start1("^0 +[0-9a-zA-Z :,]+RADIOACTIVITY...CURIES +");
@@ -25,18 +26,18 @@ void Origen2OutputFileFormat(TString fname="TAPE20d.OUT")
 	while(getline(in,str_tmp)) 
 	{
 		TString str(str_tmp);
-		if(str.Contains((TPRegexp) re_start))
+		if(re_start.Match(str))
 		{
 			getline(in,str_tmp);
 			getline(in,str_tmp);
 			str=str_tmp;
-			if(str.Contains((TPRegexp) re_start1))
+			if( re_start1.Match(str))
 			{
 				getline(in,str_tmp);
 				getline(in,str_tmp);
 				while(getline(in,str_tmp)) {
 					str=str_tmp;
-					if(str.Contains((TPRegexp) re_end))
+					if( re_end.Match(str))
 						break;
 					vec_str.push_back(str_tmp);
 				}
