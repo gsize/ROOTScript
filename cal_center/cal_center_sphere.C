@@ -17,7 +17,7 @@ Double_t cal_distance2(Double_t x1,Double_t y1,Double_t z1,Double_t x2,Double_t 
 void cal_center_sphere(TString FileName = "points.root")
 {
     Double_t radius_max=24.5,radius_ball=0.5 ;
-    Int_t count_sphere=8000;
+    Int_t count_sphere=10000;
     Double_t *center_x= new Double_t [count_sphere];
     Double_t *center_y= new Double_t [count_sphere];
     Double_t *center_z= new Double_t [count_sphere];
@@ -25,7 +25,7 @@ void cal_center_sphere(TString FileName = "points.root")
 	Double_t distanceMax2 = 0.;
 
 	radiusMax2 = radius_max * radius_max;
-	distanceMax2 = 4 * radius_ball * radius_ball;
+	distanceMax2 = 4.0 * radius_ball*radius_ball;
 	
     for(Int_t i=0; i<count_sphere; i++)
     {

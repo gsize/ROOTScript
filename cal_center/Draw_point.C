@@ -75,6 +75,10 @@ void draw_hist(TPolyMarker3D *pm3d)
 		th2->Fill(y);
 		th3->Fill(z);
 	}
+
+    TH2F *th_xy = (TH2F*)th5->Project3D("xy");
+    
+
 	TPad *tp;
 	tp = (TPad *) c2->cd(1);
 	tp -> Divide(3,1);
@@ -86,10 +90,19 @@ void draw_hist(TPolyMarker3D *pm3d)
 	th3->Draw();
 	
 	tp = (TPad *) c2->cd(2);
-	tp -> Divide(2,1);
+	tp -> Divide(3,1);
+
 	tp->cd(1);
-	th4->Draw("lego");
-	tp->cd(2);
+	th4->Draw("colz");
+
+    tp->cd(2);
+th_xy->Smooth();
+	th_xy->DrawCopy("colz");
+th_xy->SetContour(4);
+th_xy->Draw("cont3 same");
+th_xy->SetLineColor(kRed);
+
+	tp->cd(3);
 	th5->Draw("CONT3");
 }
 
@@ -100,7 +113,7 @@ void Draw_point(TString filename="points.root")
    TPolyMarker3D *pm3d1 = new TPolyMarker3D();
 
 	read_data(filename,pm3d1);
-	draw_point3D(pm3d1);
+	//draw_point3D(pm3d1);
 	draw_hist(pm3d1);
 }
 
