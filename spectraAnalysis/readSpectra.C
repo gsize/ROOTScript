@@ -2,6 +2,8 @@
 #include "TH1.h"
 #include "TArrayD.h"
 //#include <map>
+
+int  GetGammaRay(int endfcode, double ac, std::vector<double> &energy, std::vector<double> &intensity );
 class Spectra {
 	public:
 		Spectra();
@@ -109,9 +111,6 @@ TH1F *Spectra::GetTH1()
 }
 int Spectra::Read(const TString filename)
 {
-	TString dir = gSystem->UnixPathName(gInterpreter->GetCurrentMacroName());
-	dir.ReplaceAll("readSpectra.C","");
-	dir.ReplaceAll("/./","/");
 
 	fileName = filename;
 
@@ -159,7 +158,7 @@ int Spectra::Read(const TString filename)
 	}
 
 	delete [] metaData ;
-	
+
 	return 1;
 }
 
@@ -180,9 +179,9 @@ TString Spectra::FormatDateTime(char *yearStr,char *monthStr,char *dayStr,const 
 	}
 	else
 	{
-	yearStr[3]='\0';
+		yearStr[3]='\0';
 		dataTimeStr.Form("19%s-%d-%s %s",yearStr,nMonth,dayStr,timeStr);
-}
+	}
 	return dataTimeStr;
 }
 
@@ -253,7 +252,7 @@ int Spectra::ReadCnf()
 	const char* datePtr = acqPtr+48+offset2+1;
 	ULong64_t da;
 	memcpy(&da,datePtr,8);
-//takes it to 17 Nov 1858, base of modified Julian Calendar ,change to 1970-jan-1
+	//takes it to 17 Nov 1858, base of modified Julian Calendar ,change to 1970-jan-1
 	UInt_t t =(UInt_t) (da/10000000 - 3506716800u);
 	//printf("datetime:%ld time_t:%d\n",da,t);
 	measureTime.Set(t);
@@ -271,8 +270,8 @@ int Spectra::ReadCnf()
 		counts.push_back(spectraData[i]);
 	}
 	delete [] spectraData ;
-	
-return 1;
+
+	return 1;
 }
 
 int Spectra::ReadChn()
@@ -330,7 +329,7 @@ int Spectra::ReadChn()
 	energyCalPar[1]=energy_par_t;
 	memcpy(&energy_par_t,metaData+32+4*chn+12,floatSize);
 	energyCalPar[2]=energy_par_t;
-	
+
 	return 1;
 }
 
@@ -400,38 +399,38 @@ int Spectra::ReadSpc()
 	memcpy(&energy_par_t,CALRP1Str+28,floatSize);
 	energyCalPar[2]=energy_par_t;
 	//	printf("%s  %s  %s\n",CALDESStr,CALRP1Str,CALRP2Str);
-	
+
 	return 1;
 }
 
 int Spectra::ReadIEC()
 {
-return 1;
+	return 1;
 }
 
 void Spectra::FitAlpha()
 {
-TH1F *th;
-th = GetTH1();
-TSpectrum *sp = new TSpectrum();
+	TH1F *th;
+	th = GetTH1();
+	TSpectrum *sp = new TSpectrum();
 	Int_t nfound = sp->Search( th ,2,"nodraw");
 	int p1 = (sp->GetPositionX())[0];
 	double xMin , xMax;
 	xMin=p1-100 ;xMax=p1+100;
 	for(int i=0;i<nfound;i++)
 	{
-	int p = (sp->GetPositionX())[i];
-	int a = th->GetBinContent(p1) ;
-	 printf("No. %d  peaks:%d\n",p,a );
+		int p = (sp->GetPositionX())[i];
+		int a = th->GetBinContent(p1) ;
+		printf("No. %d  peaks:%d\n",p,a );
 	}
-TF1 *lg1 = new TF1("lg","[0]*TMath::Gaus(x,[1],[2])+[3]*TMath::Landau(-x+[4],[5],[6])", xMin, xMax);
-lg1->SetParameters( th->GetBinContent(p1),  p1, 4.6, th->GetBinContent(p1),  2.* p1,  p1, 5);
-th->Fit("lg","R+");
+	TF1 *lg1 = new TF1("lg","[0]*TMath::Gaus(x,[1],[2])+[3]*TMath::Landau(-x+[4],[5],[6])", xMin, xMax);
+	lg1->SetParameters( th->GetBinContent(p1),  p1, 4.6, th->GetBinContent(p1),  2.* p1,  p1, 5);
+	th->Fit("lg","R+");
 
-  delete sp;
-  
-  TCanvas *c2 = new TCanvas("c2","c2",10,10,1000,600);
-gStyle->SetOptFit(1111);
+	delete sp;
+
+	TCanvas *c2 = new TCanvas("c2","c2",10,10,1000,600);
+	gStyle->SetOptFit(1111);
 	gPad->SetLogy(1);
 	gPad->SetGridy(1);
 	gPad->SetGridx(1);
@@ -440,18 +439,18 @@ gStyle->SetOptFit(1111);
 
 void DrawTag(TH1 *h, double xTag, TString strTag)
 {
-double xMin= h->GetXaxis()->GetXmin();
-double xMax= h->GetXaxis()->GetXmax();
+	double xMin= h->GetXaxis()->GetXmin();
+	double xMax= h->GetXaxis()->GetXmax();
 
-        if(xTag > xMin && xTag < xMax)
-{
-		TLatex *tex = new TLatex(xTag,h->GetBinContent(h->FindBin(xTag)),strTag.Data());
-		tex->SetTextSize(0.02688601);
+	if(xTag > xMin && xTag < xMax)
+	{
+		TLatex *tex = new TLatex(xTag,1.1 * h->GetBinContent(h->FindBin(xTag)),strTag.Data());
+		tex->SetTextSize(0.03688601);
 		tex->SetLineWidth(2);
 		//tex->SetTextAlign(12);
 		tex->SetTextAngle(90.);
 		tex->Draw();
-}
+	}
 }
 
 short fast_log(unsigned int count)
@@ -475,10 +474,13 @@ short fast_log(unsigned int count)
 }
 
 Double_t ScaleX(Double_t x)
-{
-	Double_t v;//0.171,0.136,-2.758e-9
-	v = 0.157 +  0.136 * x  -3.172E-09*x*x; // "linear scaling" function example
-	return v;
+{ 
+	//Double_t v;//0.171,0.136,-2.758e-9
+	//v = 0.157 +  0.136 * x  -3.172E-09*x*x; // "linear scaling" function example
+	//v = 0.263 +  0.366 * x  -0.000*x*x; // "linear scaling" function example
+	TF1 *f = new TF1("FWHM","pol2",0.05,1500);
+	f->SetParameters(0.263,0.366,0.000);
+	return f->Eval(x);
 }
 
 void ScaleAxis(TAxis *a, Double_t (*Scale)(Double_t))
@@ -515,64 +517,260 @@ void ScaleXaxis(TH1 *h, Double_t (*Scale)(Double_t))
    ScaleXaxis(hist1, ScaleX);
    hist1->Draw();
    hist1->ResetStats();
-*/
+   */
 
-void readSpectra(TString fileName = "lead_shield_background_2.Chn")
+int elemNR2ENDFCode(TString elementName)
 {
-	//TString fileName("ba133_08_20131016_1.Spc");
-	//TString fileName("ba133_8.Chn");
-	//		TString fileName("lead_shield_background_2.Chn");
-	//TString fNames[]={"i1-bg-pump.Chn","i1_p7-s1-U-pump.Spc","i1-s2-dianchenji_U-pump_p1.Spc"};
-		TString fNames[]={"i1-p3_s5-dianchenji_U-pump_1.Spc","i1-p3_ds6-dianchenji_U-pump_1.Spc","i1-p3_ds7-dianchenji_U-pump_1.Spc","i1-p3_ds8-dianchenji_U-pump_1.Spc","i1-p3_ds9-dianchenji_U-pump_1.Spc"};
-	//TString fileName("Test_spc.cnf");
-	//TString fileName("Naidemo.cnf");
-	//TString fileName("i1-s2-dianchenji_U-pump_p3.Spc");
-	int numSpc = 4;
-	TH1F *th1;
-	Spectra *sp ;
-	TString pDir("/home/gsz/Nutstore/spectrum/alpha/gaosize/");
-	THStack *hs = new THStack("hs","Alpha Spectra");
-	   for(int i=0;i<numSpc;i++)
-	   {
-	   sp= new Spectra();
-	   sp->SetPathDir(pDir);
-	   sp->Read(fNames[i]);
-	   th1=sp->GetTH1();
+	int ENDFCode;
 
-	//	th1->SetFillColor(2+i);
-//	th1->SetLineColor(2+i);
-	hs->Add(th1);
+	TPRegexp re("^[A-Z][a-z]?-\\d+m?");
+	TPRegexp re1("^[A-Z][a-z]?-\\d+");
+	TPRegexp re2("^[A-Z][a-z]?-\\d+m$");
+
+	TGeoElementTable *table = gGeoManager->GetElementTable();
+	if(elementName.Contains("-"))
+		elementName.ReplaceAll("-","");
+		
+	if(elementName.Contains(re))
+	{
+		int a=0,z=0,iso=0;
+		char str[4];
+
+		sscanf(elementName.Data(),"%[A-Za-z]%d",str,&a);
+		TGeoElement *elem = table->FindElement(str);
+		z = elem->Z();
+
+		if(elementName.Contains(re2))
+			iso=1;
+		else
+			iso=0;
+
+		ENDFCode = 10000*z+10*a+iso;
 	}
+	else
+		ENDFCode=0;
 
-	hs->Draw("nostack,elp");
-	//	hs->Draw();
-	hs->GetXaxis()->SetTitle("Channel");
+	return ENDFCode;
+}
+
+
+int  GetGammaRay(int endfcode, double ac, std::vector<double> &energy, std::vector<double> &intensity )
+{
+	TString dir = gSystem->UnixPathName(gInterpreter->GetCurrentMacroName());
+	dir.ReplaceAll("readSpectra.C","");
+	dir.ReplaceAll("/./","/");
+
+	TString dbname(Form("sqlite://%s../../NuclearDatabase/nucleidata.sqlite",dir.Data()));
+	TSQLiteServer *f = new TSQLiteServer(dbname.Data());
+
+	TSQLiteRow *row;
+	TSQLiteResult *res;
+	int nfield;
+	int hasgammaray=0;
+	TString sql(Form("select * from rayInfor where ENDFCode=%d and rayType = \"G\" ",endfcode));
+	res = (TSQLiteResult*) f->Query(sql.Data());
+	if(res==0)
+	{
+		f->Close();
+		hasgammaray = -1;
+	}
+	else
+	{
+		nfield = res->GetFieldCount();
+		while((row = (TSQLiteRow *)( res->Next())))
+		{
+			TString str(row->GetField(3));
+			energy.push_back(str.Atof());
+			str= row->GetField(2);
+			intensity.push_back(str.Atof());
+			delete row;
+		}
+		delete res;
+	}
+	f->Close();
+	hasgammaray=energy.size();
+	return hasgammaray;
+}
+
+TH1* plotSpectra(TH1 *hs1,double xmin, double xmax)
+{
+	int num =8;
+	TString nuclearName[]={"Pb-211","Th-227","Rn-219","Ac-227","Pa-231","Bi-211","Tl-207","Ra-223"};
+	vector<double> gammaRay;
+	vector<double> intensity;
+	//	cSp->cd(i+1);
+	TCanvas *cSp = new TCanvas(Form("gamma%.0lf",xmin),Form("gamma %.0lf",xmin),10,10,1000,600);
+	
+	TH1 *hs=(TH1 *)hs1->Clone("PartOfH");
+	hs->Draw();
+	hs->GetXaxis()->SetRangeUser(xmin,xmax);
+	hs->GetXaxis()->SetTitle("energy/keV");
 	hs->GetXaxis()->CenterTitle(1);
 	hs->GetYaxis()->SetTitle("counts");
 	hs->GetYaxis()->CenterTitle(1);
 	gPad->SetGridx(1);
 	gPad->SetGridy(1);
-	//gPad->Update();
-	
-	TCanvas *cSp = new TCanvas("cSp","cSp",10,10,1000,600);
-	cSp->Divide(2,2);
-	TString tl[]={"s5","s6","s7","s8"};
-	TLatex *l1,*l2,*l3;
-	for(int i=0;i<hs->GetNhists();i++)
+	//	gPad->SetLogy(1);
+
+	for(int j=0;j<num;j++)
 	{
-		l1=new TLatex(1210,400,"#splitline{U-238}{4.19MeV}");
-		l2=new TLatex(1560,400,"#splitline{U-234}{4.78MeV}");
-		l3=new TLatex(1350,10,"#splitline{U-235}{4.4MeV}");
-	th1 = (TH1F*)(hs->GetHists()->At(i));
-	cSp->cd(i+1);
-	gPad->SetGridx(1);
-	gPad->SetGridy(1);
-	th1->GetXaxis()->SetRange(880,1650);
-	th1->SetTitle(tl[i].Data());
-	gPad->SetLogy(1);
-	th1->Draw();
-	l1->Draw();
-	l2->Draw();
-	l3->Draw();
+		int endf = elemNR2ENDFCode(nuclearName[j]);
+		if(GetGammaRay(endf,1.,gammaRay,intensity) < 1)
+		{
+			printf("don't have nuclear %d\n",endf);
+			break;
+		}
+		double cutSet = 0.002;
+		if(nuclearName[j].Contains("Th-227"))
+			cutSet=0.008;
+		if(nuclearName[j].Contains("Pa-231"))
+			cutSet=0.01;
+		for(int k=0;k<gammaRay.size();k++)
+		{
+			double e = gammaRay[k]*1000.+1;
+
+			if(e > 100. && e > xmin&& e < xmax  && intensity[k] > cutSet )
+			{
+				TString str;
+				str.Form("%s, %.3lf",nuclearName[j].Data(),100.*intensity[k]);
+				//str.Form("%s",nuclearName[j].Data());
+				DrawTag(hs,e,str);
+			}
+		}
+		gammaRay.clear();
+		intensity.clear();
 	}
+	return hs;
+}
+
+int plotSpectraAll(TH1 *hs1)
+{
+	int n=3;
+	double length[3]={200,180,600};
+	double offset=100.;
+
+	for(int i=0;i<n;i++)
+	{
+
+		plotSpectra(hs1,offset,offset+length[i]);
+		offset += length[i];
+	}
+	return 0;
+}
+
+double GetArea( TH1 *h,int bin,int winbin)
+{
+	double area=0.;
+	int halfWin = TMath::CeilNint(0.5*winbin);
+	area = h->Integral(bin-halfWin ,bin+halfWin );
+	return (area );
+}
+double GetBackgroundByBin( TH1 *h, int bin,int winbin)
+{	
+	double bgArea=0.;
+	TH1* bg = h->ShowBackground(20,"compton");
+	bgArea = GetArea(bg,bin,winbin);
+	return (bgArea );
+}
+
+double GetBackgroundByEnergy( TH1 *h, double energy,int winbin)
+{
+	int bin = h->FindBin(energy);
+	double bgArea =0.;
+	bgArea = GetBackgroundByBin(h,bin,winbin);
+	return (bgArea);
+}
+
+double GetNetArea( TH1 *h, double energy,int winbin)
+{
+	int bin = h->FindBin(energy);
+	double bgArea=0.;
+	double grossArea=0.;
+	bgArea =GetBackgroundByBin(h,bin,winbin);
+	grossArea =GetArea(h,bin,winbin);
+	return (grossArea -bgArea);
+}
+
+int calPa231Datime(TH1 *h)
+{
+	double xmin = 319.64;
+	double xmax =356.22 ;
+
+	//TH1F *hs = h->Clone();
+	TH1 *hs = plotSpectra(h, xmin,xmax);
+	gStyle->SetOptStat(kFALSE);
+	//hs->GetXaxis()->SetRangeUser(xmin,xmax);
+	TSpectrum *s = new TSpectrum();
+	int nfound = s->Search(hs,3,"nodraw",0.051);
+	TH1 *hb = s->Background(hs,30,"same");
+
+	double r1[5] = {119.86,41.83,34.76,21.59,8.61};
+	double rate[5],ene[5];
+	double i_Ra_324 = 3.99,i_Th_324 = 0.01;
+	double i_Ra_330 = 0.209,i_Th_330 = 2.9,i_Pa_330 = 1.396;
+	double i_Ra_334 = 0.101,i_Th_334 = 1.14;
+	double i_Ra_338 = 2.84;
+	for(int i=0;i<nfound;i++)
+	{
+		ene[i] = (double)(s->GetPositionX())[i];
+		rate[i] = GetNetArea( hs,  ene[i],14);
+		cout<<ene[i]<<" area: "<<rate[i];
+		rate[i]/=495.6;
+
+		cout<<" rate: "<<rate[i]<<endl;
+		rate[i] = r1[i];
+	}
+	for(int i=2;i<5;i++)
+	{
+		double i_k = 0;
+		if(i==4) i_k = i_Ra_334 +i_Th_334  ;
+		if(i==2) i_k = i_Ra_324 +i_Th_324  ;
+		if(i==3) i_k = i_Ra_338 ;
+		double Ai = rate[i]/i_k;
+		double k =1./( (rate[1]/Ai-(i_Th_330 + i_Ra_330))/i_Pa_330);
+		double y = 22.77*TMath::Log2(1./(1-k));
+		//double y = -TMath::Log(1-k)*21.77/0.693;
+		cout<<ene[i]<<" k= "<<k<<" y="<<y<<endl;
+	}
+	return 1;
+}
+
+void readSpectra(TString fName = "lead_shield_background_2.Chn")
+{
+	TGeoManager *geom = new TGeoManager("","");
+	TString dir = gSystem->UnixPathName(gInterpreter->GetCurrentMacroName());
+	dir.ReplaceAll("readSpectra.C","");
+	dir.ReplaceAll("/./","/");
+
+	//TString fNames("lead_shield_background_2.Chn");
+	//TString fNames[]={"i1-bg-pump.Chn","i1_p7-s1-U-pump.Spc","i1-s2-dianchenji_U-pump_p1.Spc"};
+	//TString fNames[]={"i1-p3_s5-dianchenji_U-pump_1.Spc"
+					//	,"i1-p3_ds6-dianchenji_U-pump_1.Spc"
+					//	,"i1-p3_ds7-dianchenji_U-pump_1.Spc"
+					//	,"i1-p3_ds8-dianchenji_U-pump_1.Spc"
+					//	,"i1-p3_ds9-dianchenji_U-pump_1.Spc"
+					//	};
+	//TString fNames[]={"Test_spc.cnf","Naidemo.cnf"};
+
+	TString fNames[]={"8-19-pa-231.Spc"};
+	int numSpc = 1;
+	TH1F *th1;
+	Spectra *sp ;
+	TString pDir;
+	pDir.Form("%s../../spectrum/yuanku_pa231/",dir.Data());
+	THStack *hs = new THStack("hs","Alpha Spectra");
+	for(int i=0;i<numSpc;i++)
+	{
+		sp= new Spectra();
+		sp->SetPathDir(pDir);
+		sp->Read(fNames[i]);
+		th1=sp->GetTH1();
+		ScaleXaxis(th1, ScaleX);
+		hs->Add(th1);
+	}
+	//hs->Draw("nostack,elp");
+
+//	plotSpectraAll(th1);
+	calPa231Datime(th1);
+
 }
