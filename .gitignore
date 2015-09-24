@@ -3,10 +3,12 @@
 *.png
 *.root
 *.sqlite
+Thumbs.db
 
 figure/
 zhaohaogui/
 yangtao/
+caoxuepeng/
 bubble_analy/
 xian_experiment/
 DataAnalysis/data/[0-9]*
