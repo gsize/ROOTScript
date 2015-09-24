@@ -38,7 +38,7 @@ void list()
 	dir.ReplaceAll("/./","/");
 
 	ifstream in;
-	ofstream out("outfile.txt");
+	ofstream out("nuclearListCSV1.txt");
 	in.open(Form("%s/../../NuclearDatabase/icrp-07.rad",dir.Data()));
 	if(!(in.is_open()))
 	{
@@ -50,19 +50,30 @@ void list()
 	int i=1;
 	TPMERegexp re_start1("^[a-zA-Z]+-\\d+");
 	int d1=0;
+	char  s1[15],s2[15],s3[15],s4[15];
+	TString str22,str33;
+
 	while(getline(in,str_tmp)) 
 	{
 		TString str(str_tmp);
 		if(str.Contains((TPRegexp)re_start1))
 		{
-			char s1[10],s2[10];
+			//char s1[10],s2[10];
 			sscanf(str.Data(),"%s %s %d",s1,s2,&d1);
 			TString strt(s1);
 			d1 = elemNR2ENDFCode(strt);
+			//out<<d1<<" "<<str<<endl;
 		}
 		else 
 		{
-			out<<d1<<" "<<str<<endl;
+			sscanf(str.Data(),"%s %s %s %s",s1,s2,s3,s4);
+			if(str22.Contains(s2) && str33.Contains(s3))
+			{
+				continue;
+			}
+			str22 = s2;
+			str33 = s3;
+			out<<"\""<<d1<<"\",\""<<s1<<"\",\""<<s2<<"\",\""<<s3<<"\",\""<<s4<<"\""<<endl;
 		}
 	}
 	in.close();

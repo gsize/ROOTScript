@@ -62,11 +62,12 @@ void PlotSpectra()
          binFlag = gr->FindBin(energy[i]);
          double BC= 0.;
          BC = gr->GetBinContent(binFlag);
-         gr->SetBinContent(binFlag,BC + strength[i]);
+         gr->SetBinContent(binFlag,BC + intensity[i]);
          //cout<<energy[i]<<"\t"<<strength[i]<<endl;
      }
      gr->Scale(1./gr->Integral());//归一化
      //gr->Draw("apl");
+     //gr->GetXaxis()->SetLimits(0.5,2.);
      gStyle->SetOptStat(kFALSE);
      gr->Draw();
 
