@@ -50,29 +50,6 @@ void ReadInputFile( std::vector<string> &element, std::vector<double> &time, std
 	in.close();
 }
 
-double CalculateActivity( const TString &element_name,double time, Double_t Activity0 = 1.0)
-{
-	int ENDFCode;
-	ENDFCode = elemNR2ENDFCode(element_name);
-	TGeoElementTable *table = gGeoManager->GetElementTable();
-	TGeoElementRN *elemNR = table->GetElementRN(ENDFCode );
-
-	// Radioactive material
-	TObjArray *vect = new TObjArray();
-	TGeoBatemanSol *sol;
-
-	elemNR->FillPopulation(vect, 0.000001);
-	sol = elemNR->Ratio();
-	sol->Normalize(Activity0);
-	//sol->SetRange(0,time);
-	double active=sol->Concentration(time);
-
-	elemNR->ResetRatio();
-	delete vect;
-	
-	return active;
-}
-
 int elemNR2ENDFCode(TString elementName)
 {
 	int ENDFCode;
@@ -123,9 +100,11 @@ void GetGammaRay(const TString el, std::vector<double> &energy, std::vector<doub
 
 	while((row = (TSQLiteRow *)( res->Next())))
 	{
-		energy.push_back(row->GetField(3));
-		intensity.push_back(row->GetField(2));
-	//	printf("%12s%12s%12s\n",row->GetField(0),row->GetField(3),row->GetField(2));
+		TString str(row->GetField(3));
+		energy.push_back(str.Atof());
+		str= row->GetField(2);
+		intensity.push_back(str.Atof());
+		//	printf("%12s%12s%12s\n",row->GetField(0),row->GetField(3),row->GetField(2));
 		delete row;
 	}
 	delete res;
@@ -155,6 +134,31 @@ double MDA(double bg,double eff,double re,double t)
 	return (k*TMath::Sqrt(bg)/eff/re/t);
 }
 
+double CalculateActivity( const TString &element_name,double time, Double_t Activity0 = 1.0)
+{
+	int ENDFCode;
+	ENDFCode = elemNR2ENDFCode(element_name);
+	TGeoElementTable *table = gGeoManager->GetElementTable();
+	TGeoElementRN *elemNR = table->GetElementRN(ENDFCode );
+
+	// Radioactive material
+	TObjArray *vect = new TObjArray();
+	TGeoBatemanSol *sol;
+
+	elemNR->FillPopulation(vect, 0.000001,Activity0);
+
+	sol = elemNR->Ratio();
+	//sol->SetRange(0,time);
+	printf("%s specificActivity = %.3E Bq/g\n",elemNR->GetName(),elemNR->GetSpecificActivity());
+	//elemNR->Print();
+	double active=sol->Concentration(time);
+
+	elemNR->ResetRatio();
+	delete vect;
+
+	return active;
+}
+
 void DrawPopulation(TObjArray *vect, TCanvas *can, Double_t tmin=0., 
 		Double_t tmax=0., Bool_t logx=kFALSE)
 {
@@ -175,14 +179,22 @@ void DrawPopulation(TObjArray *vect, TCanvas *can, Double_t tmin=0.,
 			if (tmax>0.) sol->SetRange(tmin,tmax);
 			if (i==0) {
 				sol->Draw();
-				/*  TF1 *func = (TF1*)can->FindObject(
-					Form("conc%s",sol->GetElement()->GetName()));
-				 */  
+				TF1 *func = (TF1*)can->FindObject(Form("conc%s",sol->GetElement()->GetName()));
+				if (func) {
+					func->SetTitle(Form("Concentration of %s derived elements;time[year];Ni/N0",sol->GetElement()->GetName()));
+					func->GetXaxis()->SetTimeDisplay(1);
+					func->GetXaxis()->SetTimeOffset(0);
+					func->GetXaxis()->SetTimeFormat("%y%F2000-01-01 00:00:01");
+				}
 			}
 			else      sol->Draw("SAME");
 			TString nameRN;
 			double t;
-			t=0.5*(tmin+tmax);
+			//t=0.5*(tmin+tmax);
+			if(i%2==0)
+				t=0.6*(tmin+tmax);
+			else
+				t=0.3*(tmin+tmax);
 			nameRN.Form("%s", elem->GetName());
 			TLatex *tex = new TLatex(t,sol->Concentration(t),nameRN);
 			tex->SetTextSize(0.0388601);
@@ -198,18 +210,24 @@ void NucleiDecay(bool flag = 0)
 
 	std::vector<string> ElementList;
 	std::vector<double> TimeList;
-	std::vector<double> ActivityList; 
+	std::vector<double> ActivityList;
+	std::vector<double> energy;
+	std::vector<double> branch; 
 
 	ReadInputFile(ElementList, TimeList, ActivityList,flag);
 
 	for(int i=0; i<ElementList.size();i++)
 	{
 		TString element_name(ElementList[i]);
-		CalculateActivity( element_name,TimeList[i], ActivityList[i]);
+		double a1=0.;
+		a1 = CalculateActivity( element_name,TimeList[i], ActivityList[i]);
+		printf("%s after %.3E s ,activity = %.3E\n",element_name.Data(),TimeList[i] ,a1);
 	}
-	
-	TString em("Co-60");
-	GetGammaRay(em);
-	
+	/*	
+		TString em("Co-60");
+		GetGammaRay(em,energy,branch);
+		for(int i=0;i<energy.size();i++)
+		cout<<energy[i]<<"\t"<<branch[i]<<endl;
+		*/
 	delete geom;
 }
