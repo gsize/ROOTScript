@@ -35,10 +35,8 @@ TNtupleD* readData(TString filename)
 		return 0;
 	}
 
-	TPMERegexp re(".{7,7}( [0-9]+(\\.[0-9]+)(E|e)(\\+|\\-)[0-9]{2,2}){8,8}");
-	//TPRegexp re(".{7,7}( [0-9]+(\\.[0-9]+)(E|e)(\\+|\\-)[0-9]{2,2}){8,8}");
-//	TPMERegexp re("([0-9]+(\\.[0-9]+)(E|e)(\\+|\\-)[0-9]{2,2} ){7,7}([0-9]+(\\.[0-9]+)(E|e)(\\+|\\-)[0-9]{2,2})");
-	//re.Print();
+	TPMERegexp re("( [0-9]+(\\.[0-9]+)(E|e)(\\+|\\-)[0-9]{2,2}){8,8}");
+	//TPMERegexp re(".{7,7}( [0-9]+(\\.[0-9]+)(E|e)(\\+|\\-)[0-9]{2,2}){8,8}");
 	string str_tmp;
 
 	double d1,d2,d3,d4,d5,d6,d7,d8;
@@ -100,25 +98,27 @@ void drawMaterial(TString mat)
 	mg->GetYaxis()->CenterTitle();
 	gPad->Update();	
 
-	c4->BuildLegend();
+	TLegend *leg = c4->BuildLegend();
+	leg->SetFillStyle(0);
 }
 
 void drawTotalAttenuation()
 {
 	TString mats[]={
-		"Air_N75.5O23.2","H2O","Air1",
-		"W95Ni1Fe1","W95Ni7Fe3","Fe",
-		"Pb","Al","Cu"
+	//	"Air_N75.5O23.2","H2O",//"Air1",
+		"W95Ni1Fe1","W95Ni7Fe3",
+	"Fe",
+		"Pb","Al","U"
 	};
-	int num = 9;
+	int num = 6;
 
 	TNtupleD *ntuple;
 	TMultiGraph *mg = new TMultiGraph();
 	TGraph *gr;
 
-	TString listTag[8]={
+	TString listTag[2]={
 		"PhotonEnergy",
-		"TotalAttenuationWithCoherentScatt",
+		"TotalAttenuationWithCoherentScatt"
 	};
 	for(int i=0;i<num;i++)
 	{
@@ -141,23 +141,23 @@ void drawTotalAttenuation()
 	mg->Draw("L a");
 	gPad->SetLogx(1);
 	gPad->SetLogy(1);
-	mg->SetMinimum(1.0e-2);
+	mg->SetMinimum(1.0e-9);
 	mg->GetXaxis()->SetTitle("Photon Energy/ MeV");
 	mg->GetXaxis()->CenterTitle();
 	mg->GetYaxis()->SetTitle("Photon Cross Section/ cm^{2}/g");
 	mg->GetYaxis()->CenterTitle();
 	gPad->Update();	
 
-	//mg->GetXaxis()->SetRangeUser(0.01,15.);
-	//mg->GetXaxis()->SetLimits(0.01,15.);
 	c3->BuildLegend();
+	TLegend *leg = c3->BuildLegend();
+	leg->SetFillStyle(0);
 }
 
-void plotGraph(TString fname="U")
+void plotGraph(TString fname="Air1")
 {
-//		drawTotalAttenuation();
+	drawTotalAttenuation();
 
 		//TString mat("U");
-		drawMaterial( fname);
+			drawMaterial( fname);
 
 }
