@@ -145,7 +145,7 @@ int  GetGammaRay(int endfcode, double ac, std::vector<double> &energy, std::vect
 	dir.ReplaceAll("gammaSpectraMaker.C","");
 	dir.ReplaceAll("/./","/");
 
-	TString dbname(Form("sqlite://%snucleidata.sqlite",dir.Data()));
+	TString dbname(Form("sqlite://%sdata/nucleidata.sqlite",dir.Data()));
 	TSQLiteServer *f = new TSQLiteServer(dbname.Data());
 
 	TSQLiteRow *row;
@@ -192,7 +192,7 @@ void Print2File(TString input)
 	
 	TGeoElementTable *table = gGeoManager->GetElementTable();
 	TGeoElementRN* nu;
-
+	fout<<"nuclear"<<"\t"<<"HalfLife(s)"<<"\t"<<"energy(MeV)"<<"\t"<<"intensity"<<"\t"<<"strength"<<endl;
 	for(int i=0;i<energy.size();i++)
 	{
 		nu = table->GetElementRN(ensdf[i]);
@@ -223,6 +223,10 @@ void PlotSpectra()
 		gr->Scale(1./gr->Integral());//归一化
 	//gr->Draw("apl");
 	gStyle->SetOptStat(kFALSE);
+	gr->GetXaxis()->SetTitle("Energy/MeV");
+	gr->GetXaxis()->CenterTitle();
+	gr->GetYaxis()->SetTitle("strength");
+	gr->GetYaxis()->CenterTitle();
 	gr->Draw();
 	}else
 		printf("No Data!\n");
