@@ -2,16 +2,14 @@
 
 int elemNR2ENDFCode(TString elementName);
 
-void ReadInputFile( std::vector<string> &element, std::vector<double> &time, std::vector<double> &Activity ,bool flag= 0)
+void ReadInputFile( std::vector<string> &element, std::vector<double> &time, std::vector<double> &Activity )
 {
 	TString dir = gSystem->UnixPathName(gInterpreter->GetCurrentMacroName());
 	dir.ReplaceAll("NucleiDecay.C","");
 	dir.ReplaceAll("/./","/");
 	TString pathName;
-	if(flag== 0)
+
 		pathName = dir + "input0.txt";
-	else 
-		pathName = dir + "input1.txt";
 
 	ifstream in;
 	in.open(pathName.Data());
@@ -22,6 +20,8 @@ void ReadInputFile( std::vector<string> &element, std::vector<double> &time, std
 	}
 
 	string str_tmp;
+	TPRegexp re1("([A-Za-z]{1,2}-?\\d{1,3}[Mm]?)([ \t]+\\d[0-9.+\\-Ee]+){2,2}");
+	TPRegexp re2("([A-Za-z]{1,2}-?\\d{1,3}[Mm]?)([ \t]+\\d[0-9.+\\-Ee]+)([ \t]+(\\d{4,4}(-\\d{1,2}){2,2} +\\d{1,2}(:\\d{1,2}){2,2})){2,2}");
 	TPRegexp re("^#");
 	while(getline(in,str_tmp)) {
 		TString str(str_tmp);
@@ -30,13 +30,17 @@ void ReadInputFile( std::vector<string> &element, std::vector<double> &time, std
 		double timeSTR;
 		double activitySTR;
 		char elementSTR[9];
-		if( flag== 0)
-			sscanf(str_tmp.c_str(),"%s%lg%lg",elementSTR,&timeSTR, &activitySTR);
-		else
+		if(str.Contains(re1) || str.Contains(re2))
+		{
+		if(str.Contains(re1))
+		{
+			sscanf(str_tmp.c_str(),"%s%lg%lg",elementSTR, &activitySTR,&timeSTR);
+		}
+		if(str.Contains(re2))
 		{
 			char day0[15],day1[15];
 			char time0[10],time1[10];
-			sscanf(str_tmp.c_str(),"%s%s%s%s%s%lg",elementSTR,day0,time0,day1,time1, &activitySTR);
+			sscanf(str_tmp.c_str(),"%s%lg%s%s%s%s",elementSTR, &activitySTR,day0,time0,day1,time1);
 
 			TDatime t0(Form("%s %s",day0,time0));
 			TDatime t1(Form("%s %s",day1,time1));
@@ -46,6 +50,7 @@ void ReadInputFile( std::vector<string> &element, std::vector<double> &time, std
 		element.push_back(tmpSTR);
 		time.push_back(timeSTR);
 		Activity.push_back(activitySTR);
+		}
 	}
 	in.close();
 }
@@ -149,7 +154,7 @@ double CalculateActivity( const TString &element_name,double time, Double_t Acti
 
 	sol = elemNR->Ratio();
 	//sol->SetRange(0,time);
-	printf("%s specificActivity = %.3E Bq/g\n",elemNR->GetName(),elemNR->GetSpecificActivity());
+//	printf("%s specificActivity = %.3E Bq/g\n",elemNR->GetName(),elemNR->GetSpecificActivity());
 	//elemNR->Print();
 	double active=sol->Concentration(time);
 
@@ -204,7 +209,7 @@ void DrawPopulation(TObjArray *vect, TCanvas *can, Double_t tmin=0.,
 	}
 }
 
-void NucleiDecay(bool flag = 0)
+void NucleiDecay()
 {
 	TGeoManager *geom = new TGeoManager("","");
 
@@ -214,7 +219,7 @@ void NucleiDecay(bool flag = 0)
 	std::vector<double> energy;
 	std::vector<double> branch; 
 
-	ReadInputFile(ElementList, TimeList, ActivityList,flag);
+	ReadInputFile(ElementList, TimeList, ActivityList);
 
 	for(int i=0; i<ElementList.size();i++)
 	{
