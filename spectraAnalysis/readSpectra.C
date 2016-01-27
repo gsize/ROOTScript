@@ -3,7 +3,10 @@
 #include "TArrayD.h"
 //#include <map>
 
+void ScaleAxis(TAxis *a, TF1 *scaleFun);
+void ScaleXaxis(TH1 *h, TF1 *scaleFun);
 int  GetGammaRay(int endfcode, double ac, std::vector<double> &energy, std::vector<double> &intensity );
+
 class Spectra {
 	public:
 		Spectra();
@@ -16,6 +19,7 @@ class Spectra {
 		void Reset();
 		void SetPathDir(const TString path){pathDir = path;};
 		void FitAlpha();
+		TF1* GetEnergyCalib(){return energyCalibrationFun;};
 
 	private:
 		int ReadChn();  //ORTEC spectra .chn
@@ -23,6 +27,7 @@ class Spectra {
 		int ReadCnf(); //Canberra spectra .cnf
 		int ReadIEC();
 		TString FormatDateTime(char *yearStr,char *monthStr,char *dayStr,const char *timeStr);
+		void UpdateEnergyCalibrationFun();
 
 	private:
 		std::vector<int> counts;
@@ -38,17 +43,21 @@ class Spectra {
 		char * metaData;
 
 		UInt_t fileSize;
+		TF1* energyCalibrationFun;
 };
 
 Spectra::Spectra()
 {
 	liveTime=0.;
 	realTime=0.;
+	energyCalibrationFun = new TF1("EnergyCal","pol2",0.05,8192);
+	energyCalibrationFun ->SetParameters(0.,1.,0.);
 }
 
 Spectra::~Spectra()
 {
 	//	delete metaData;
+	delete energyCalibrationFun;
 
 }
 void Spectra::Reset()
@@ -61,6 +70,7 @@ void Spectra::Reset()
 	fileName.Clear();
 	spectraType.Clear();
 	pathDir.Clear();
+	delete energyCalibrationFun;
 };
 
 
@@ -74,13 +84,13 @@ void Spectra::Print()
 	printf("Live Time:%.3lf\t",liveTime);
 	printf("Dead Time:%5.2lf%%\n",100. * (realTime-liveTime)/realTime);
 	printf("Channel Number:%d\n",channels);
-	printf("Energy Calibration: E = %.3lf + %.3lf*chn +%.3lf*chn^2\n",energyCalPar[0],energyCalPar[1],energyCalPar[2]);
+	printf("Energy Calibration: E = %.3E + %.3E*chn +%.3E*chn^2\n",energyCalPar[0],energyCalPar[1],energyCalPar[2]);
 
 }
 
 void Spectra::Plot()
 {
-	TCanvas *c1 = new TCanvas("c1","c1",10,10,1000,600);
+	TCanvas *c1 = new TCanvas("spectra","spectra",10,10,1000,600);
 	TH1F *th1;
 	th1 = GetTH1();
 	gPad->SetLogy(1);
@@ -96,8 +106,8 @@ TH1F *Spectra::GetTH1()
 	xmax=(double)channels;
 	int nbins=channels;
 
-	TH1F *h = new TH1F("h"," gamma Spectra",nbins,xmin,xmax);
-	h->SetXTitle("Channel");
+	TH1F *h = new TH1F("h","Spectra",nbins,xmin,xmax);
+	h->SetXTitle("Energy/keV");
 	h->GetXaxis()->CenterTitle(1);
 	h->SetYTitle("counts");
 	h->GetYaxis()->CenterTitle(1);
@@ -106,9 +116,18 @@ TH1F *Spectra::GetTH1()
 	for(int i=0; i<nbins; i++){
 		h->SetBinContent(i+1,counts[i]);
 	}
-	//printf("channel 1000: %lf",h->GetBinContent(1000));
+	UpdateEnergyCalibrationFun();
+	ScaleXaxis(h,energyCalibrationFun );
+
 	return h;;
 }
+
+void Spectra::UpdateEnergyCalibrationFun()
+{
+	energyCalibrationFun->SetRange(0.,channels);
+	energyCalibrationFun->SetParameters(energyCalPar[0],energyCalPar[1],energyCalPar[2]);
+}
+
 int Spectra::Read(const TString filename)
 {
 
@@ -445,7 +464,7 @@ void DrawTag(TH1 *h, double xTag, TString strTag)
 	if(xTag > xMin && xTag < xMax)
 	{
 		TLatex *tex = new TLatex(xTag,1.1 * h->GetBinContent(h->FindBin(xTag)),strTag.Data());
-		tex->SetTextSize(0.03688601);
+		tex->SetTextSize(0.026);
 		tex->SetLineWidth(2);
 		//tex->SetTextAlign(12);
 		tex->SetTextAngle(90.);
@@ -473,17 +492,7 @@ short fast_log(unsigned int count)
 	return(i);
 }
 
-Double_t ScaleX(Double_t x)
-{ 
-	//Double_t v;//0.171,0.136,-2.758e-9
-	//v = 0.157 +  0.136 * x  -3.172E-09*x*x; // "linear scaling" function example
-	//v = 0.263 +  0.366 * x  -0.000*x*x; // "linear scaling" function example
-	TF1 *f = new TF1("FWHM","pol2",0.05,1500);
-	f->SetParameters(0.263,0.366,0.000);
-	return f->Eval(x);
-}
-
-void ScaleAxis(TAxis *a, Double_t (*Scale)(Double_t))
+void ScaleAxis(TAxis *a, TF1 *scaleFun)
 {
 	if (!a) return; // just a precaution
 	if (a->GetXbins()->GetSize())
@@ -492,7 +501,7 @@ void ScaleAxis(TAxis *a, Double_t (*Scale)(Double_t))
 		// note: bins must remain in increasing order, hence the "Scale"
 		// function must be strictly (monotonically) increasing
 		TArrayD X(*(a->GetXbins()));
-		for(Int_t i = 0; i < X.GetSize(); i++) X[i] = Scale(X[i]);
+		for(Int_t i = 0; i < X.GetSize(); i++) X[i] = scaleFun->Eval(X[i]);
 		a->Set((X.GetSize() - 1), X.GetArray()); // new Xbins
 	}
 	else
@@ -501,36 +510,31 @@ void ScaleAxis(TAxis *a, Double_t (*Scale)(Double_t))
 		// note: we modify Xmin and Xmax only, hence the "Scale" function
 		// must be linear (and Xmax must remain greater than Xmin)
 		a->Set(a->GetNbins(),
-				Scale(a->GetXmin()), // new Xmin
-				Scale(a->GetXmax())); // new Xmax
+				scaleFun->Eval(a->GetXmin()), // new Xmin
+				scaleFun->Eval(a->GetXmax())); // new Xmax
 	}
 	return;
 }
 
-void ScaleXaxis(TH1 *h, Double_t (*Scale)(Double_t))
+void ScaleXaxis(TH1 *h, TF1 *scaleFun)
 {
 	if (!h) return; // just a precaution
-	ScaleAxis(h->GetXaxis(), Scale);
+	ScaleAxis(h->GetXaxis(), scaleFun);
 	return;
 }
-/*
-   ScaleXaxis(hist1, ScaleX);
-   hist1->Draw();
-   hist1->ResetStats();
-   */
 
 int elemNR2ENDFCode(TString elementName)
 {
 	int ENDFCode;
 
-	TPRegexp re("^[A-Z][a-z]?-\\d+m?");
-	TPRegexp re1("^[A-Z][a-z]?-\\d+");
-	TPRegexp re2("^[A-Z][a-z]?-\\d+m$");
+	TPRegexp re("^[A-Za-z]{1,2}-?\\d+[Mm]?");
+	TPRegexp re1("^[A-Za-z]{1,2}-?\\d+");
+	TPRegexp re2("^[A-Za-z]{1,2}-?\\d+[Mm]$");
 
 	TGeoElementTable *table = gGeoManager->GetElementTable();
 	if(elementName.Contains("-"))
 		elementName.ReplaceAll("-","");
-		
+
 	if(elementName.Contains(re))
 	{
 		int a=0,z=0,iso=0;
@@ -552,7 +556,6 @@ int elemNR2ENDFCode(TString elementName)
 
 	return ENDFCode;
 }
-
 
 int  GetGammaRay(int endfcode, double ac, std::vector<double> &energy, std::vector<double> &intensity )
 {
@@ -592,15 +595,97 @@ int  GetGammaRay(int endfcode, double ac, std::vector<double> &energy, std::vect
 	return hasgammaray;
 }
 
-TH1* plotSpectra(TH1 *hs1,double xmin, double xmax)
+void readNuclideList( std::vector<string> &element, std::vector<double> &rate)
 {
-	int num =8;
-	TString nuclearName[]={"Pb-211","Th-227","Rn-219","Ac-227","Pa-231","Bi-211","Tl-207","Ra-223"};
+	TString dir = gSystem->UnixPathName(gInterpreter->GetCurrentMacroName());
+	dir.ReplaceAll("readSpectra.C","");
+	dir.ReplaceAll("/./","/");
+	TString pathName;
+
+	pathName = dir + "nuclideList.txt";
+
+	ifstream in;
+	in.open(pathName.Data());
+	if(!(in.is_open()))
+	{
+		printf("open file failed!");
+		return;
+	}
+
+	string str_tmp;
+	double rate_tmp;
+	char elementSTR[9];
+	TPRegexp re("[A-Za-z]{1,2}-?\\d{1,3}[Mm]?[ \t]+\\d[\\d.+\\-Ee]+");
+
+	while(getline(in,str_tmp)) {
+		TString str(str_tmp);
+		if(str.Contains(re))
+		{
+			sscanf(str_tmp.c_str(),"%s%lg",elementSTR, &rate_tmp);
+			string tmpSTR(elementSTR);
+			element.push_back(tmpSTR);
+			rate.push_back(rate_tmp);
+		}
+	}
+}
+
+TH1* plotGammaSpectra(TH1 *hs1,double xmin, double xmax)
+{
+	std::vector<string> nuclides;
+	std::vector<double> rateCuts;
+
+	readNuclideList( nuclides, rateCuts);
+
 	vector<double> gammaRay;
 	vector<double> intensity;
 	//	cSp->cd(i+1);
 	TCanvas *cSp = new TCanvas(Form("gamma%.0lf",xmin),Form("gamma %.0lf",xmin),10,10,1000,600);
-	
+
+	TH1 *hs = (TH1 *)hs1->Clone("PartOfH");
+	hs->Draw();
+	hs->GetXaxis()->SetRangeUser(xmin,xmax);
+	hs->GetXaxis()->SetTitle("energy/keV");
+	hs->GetXaxis()->CenterTitle(1);
+	hs->GetYaxis()->SetTitle("counts");
+	hs->GetYaxis()->CenterTitle(1);
+	gPad->SetGridx(1);
+	gPad->SetGridy(1);
+	//	gPad->SetLogy(1);
+
+	for(int j=0;j<nuclides.size();j++)
+	{
+		TString nuclearName(nuclides[j]);
+		int endf = elemNR2ENDFCode(nuclearName);
+		if(GetGammaRay(endf,1.,gammaRay,intensity) < 1)
+		{
+			printf("don't have nuclear %d\n",endf);
+			break;
+		}
+		for(int k=0;k<gammaRay.size();k++)
+		{
+			double e = gammaRay[k]*1000.+1;
+
+			if(e > 100. && e > xmin&& e < xmax  && intensity[k] > rateCuts[j] )
+			{
+				TString str;
+				str.Form("%s, %.3lf",nuclearName.Data(),100.*intensity[k]);
+				//str.Form("%s",nuclearName[j].Data());
+				DrawTag(hs,e,str);
+			}
+		}
+		gammaRay.clear();
+		intensity.clear();
+	}
+	return hs;
+}
+
+TH1* plotAlphaSpectra(TH1 *hs1,double xmin, double xmax)
+{
+	TString nuclearName[]={"U-238","U-235","U-234"};
+	Double energy[] = {4.18,4.4,4.78};
+
+	TCanvas *cSp = new TCanvas(Form("Alpha%.0lf",xmin),Form("Alpha %.0lf",xmin),10,10,1000,600);
+
 	TH1 *hs=(TH1 *)hs1->Clone("PartOfH");
 	hs->Draw();
 	hs->GetXaxis()->SetRangeUser(xmin,xmax);
@@ -614,17 +699,7 @@ TH1* plotSpectra(TH1 *hs1,double xmin, double xmax)
 
 	for(int j=0;j<num;j++)
 	{
-		int endf = elemNR2ENDFCode(nuclearName[j]);
-		if(GetGammaRay(endf,1.,gammaRay,intensity) < 1)
-		{
-			printf("don't have nuclear %d\n",endf);
-			break;
-		}
-		double cutSet = 0.002;
-		if(nuclearName[j].Contains("Th-227"))
-			cutSet=0.008;
-		if(nuclearName[j].Contains("Pa-231"))
-			cutSet=0.01;
+
 		for(int k=0;k<gammaRay.size();k++)
 		{
 			double e = gammaRay[k]*1000.+1;
@@ -647,12 +722,12 @@ int plotSpectraAll(TH1 *hs1)
 {
 	int n=3;
 	double length[3]={200,180,600};
-	double offset=100.;
+	double offset=250.;
 
 	for(int i=0;i<n;i++)
 	{
 
-		plotSpectra(hs1,offset,offset+length[i]);
+		plotGammaSpectra(hs1,offset,offset+length[i]);
 		offset += length[i];
 	}
 	return 0;
@@ -691,50 +766,6 @@ double GetNetArea( TH1 *h, double energy,int winbin)
 	return (grossArea -bgArea);
 }
 
-int calPa231Datime(TH1 *h)
-{
-	double xmin = 319.64;
-	double xmax =356.22 ;
-
-	//TH1F *hs = h->Clone();
-	TH1 *hs = plotSpectra(h, xmin,xmax);
-	gStyle->SetOptStat(kFALSE);
-	//hs->GetXaxis()->SetRangeUser(xmin,xmax);
-	TSpectrum *s = new TSpectrum();
-	int nfound = s->Search(hs,3,"nodraw",0.051);
-	TH1 *hb = s->Background(hs,30,"same");
-
-	double r1[5] = {119.86,41.83,34.76,21.59,8.61};
-	double rate[5],ene[5];
-	double i_Ra_324 = 3.99,i_Th_324 = 0.01;
-	double i_Ra_330 = 0.209,i_Th_330 = 2.9,i_Pa_330 = 1.396;
-	double i_Ra_334 = 0.101,i_Th_334 = 1.14;
-	double i_Ra_338 = 2.84;
-	for(int i=0;i<nfound;i++)
-	{
-		ene[i] = (double)(s->GetPositionX())[i];
-		rate[i] = GetNetArea( hs,  ene[i],14);
-		cout<<ene[i]<<" area: "<<rate[i];
-		rate[i]/=495.6;
-
-		cout<<" rate: "<<rate[i]<<endl;
-		rate[i] = r1[i];
-	}
-	for(int i=2;i<5;i++)
-	{
-		double i_k = 0;
-		if(i==4) i_k = i_Ra_334 +i_Th_334  ;
-		if(i==2) i_k = i_Ra_324 +i_Th_324  ;
-		if(i==3) i_k = i_Ra_338 ;
-		double Ai = rate[i]/i_k;
-		double k =1./( (rate[1]/Ai-(i_Th_330 + i_Ra_330))/i_Pa_330);
-		double y = 22.77*TMath::Log2(1./(1-k));
-		//double y = -TMath::Log(1-k)*21.77/0.693;
-		cout<<ene[i]<<" k= "<<k<<" y="<<y<<endl;
-	}
-	return 1;
-}
-
 void readSpectra(TString fName = "lead_shield_background_2.Chn")
 {
 	TGeoManager *geom = new TGeoManager("","");
@@ -742,35 +773,47 @@ void readSpectra(TString fName = "lead_shield_background_2.Chn")
 	dir.ReplaceAll("readSpectra.C","");
 	dir.ReplaceAll("/./","/");
 
-	//TString fNames("lead_shield_background_2.Chn");
-	//TString fNames[]={"i1-bg-pump.Chn","i1_p7-s1-U-pump.Spc","i1-s2-dianchenji_U-pump_p1.Spc"};
-	//TString fNames[]={"i1-p3_s5-dianchenji_U-pump_1.Spc"
-					//	,"i1-p3_ds6-dianchenji_U-pump_1.Spc"
-					//	,"i1-p3_ds7-dianchenji_U-pump_1.Spc"
-					//	,"i1-p3_ds8-dianchenji_U-pump_1.Spc"
-					//	,"i1-p3_ds9-dianchenji_U-pump_1.Spc"
-					//	};
+	int numSpc = 1;
+	//TString fNames[]={"i1-bg-pump.Chn","i1-p3-s2-dianchenji_U-pump.Spc","i1-s1-U-pump_1.Chn"};
+	/*TString fNames[]={"i1-p3_s5-dianchenji_U-pump_1.Spc"
+	  ,"i1-p3_ds6-dianchenji_U-pump_1.Spc"
+	  ,"i1-p3_ds7-dianchenji_U-pump_1.Spc"
+	  ,"i1-p3_ds8-dianchenji_U-pump_1.Spc"
+	  ,"i1-p3_ds9-dianchenji_U-pump_1.Spc"
+	  };
+	  */
 	//TString fNames[]={"Test_spc.cnf","Naidemo.cnf"};
 
 	TString fNames[]={"8-19-pa-231.Spc"};
-	int numSpc = 1;
+	THStack *hs = new THStack("hs","Spectra");
 	TH1F *th1;
 	Spectra *sp ;
 	TString pDir;
-	pDir.Form("%s../../spectrum/yuanku_pa231/",dir.Data());
-	THStack *hs = new THStack("hs","Alpha Spectra");
+	//pDir.Form("%s../../spectrum/alpha/gaosize/gsz20150327/",dir.Data());
+	//pDir.Form("%s../../spectrum/GEM30P4-76-pl/gaosize/Re188/",dir.Data());
+	pDir.Form("%s",dir.Data());
+
 	for(int i=0;i<numSpc;i++)
 	{
 		sp= new Spectra();
 		sp->SetPathDir(pDir);
 		sp->Read(fNames[i]);
-		th1=sp->GetTH1();
-		ScaleXaxis(th1, ScaleX);
+		th1 = sp->GetTH1();
+		TF1 *f1;
 		hs->Add(th1);
+		sp->Print();
+		sp->Plot();
 	}
-	//hs->Draw("nostack,elp");
-
-//	plotSpectraAll(th1);
-	calPa231Datime(th1);
-
+	if(0)
+	{
+		hs->Draw("nostack,elp");
+		hs->GetXaxis()->SetTitle("Channel");
+		hs->GetXaxis()->CenterTitle(1);
+		hs->GetYaxis()->SetTitle("counts");
+		hs->GetYaxis()->CenterTitle(1);
+		gPad->SetGridx(1);
+		gPad->SetGridy(1);
+		gPad->SetLogy(1);
+	}
+	//	plotSpectraAll(th1);
 }
